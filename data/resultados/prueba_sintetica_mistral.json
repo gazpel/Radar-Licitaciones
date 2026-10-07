@@ -1,0 +1,51 @@
+[
+  {
+    "tipo": "requisito",
+    "descripcion": "Se requiere ser inscrito en el Registro de Proveedores del Estado al momento de la adjudicación.",
+    "pagina": 2,
+    "cita": "3. Requisitos para ofertar. Podran participar personas naturales o juridicas que se encuentren inscritas en el Registro de Proveedores del Estado al momento de la adjudicacion.",
+    "verificado": true
+  },
+  {
+    "tipo": "documento",
+    "descripcion": "Se debe adjuntar la Declaracion jurada de no tener conflicto de intereses (Anexo N 1) y la Identificacion del oferente (Anexo N 2).",
+    "pagina": 2,
+    "cita": "4. Documentos administrativos. El oferente debera adjuntar la Declaracion jurada de no tener conflicto de intereses (Anexo N 1) y la Identificacion del oferente (Anexo N 2).",
+    "verificado": true
+  },
+  {
+    "tipo": "documento",
+    "descripcion": "Se debe presentar la ficha tecnica del producto con densidad, dimensiones y tipo de funda, y un certificado de ignifugidad del material.",
+    "pagina": 2,
+    "cita": "5. Documentos tecnicos. Se debera presentar la ficha tecnica del producto con densidad, dimensiones y tipo de funda, y un certificado de ignifugidad del material.",
+    "verificado": true
+  },
+  {
+    "tipo": "garantia",
+    "descripcion": "Se debe entregar una garantia de fiel cumplimiento por un monto equivalente al 5% del valor total del contrato, con vigencia de 60 dias habiles posteriores al termino del contrato.",
+    "pagina": 3,
+    "cita": "6. Garantia de fiel cumplimiento. El adjudicado debera entregar una garantia de fiel cumplimiento por un monto equivalente al 5% del valor total del contrato, con vigencia de 60 dias habiles posteriores al termino del contrato.",
+    "verificado": true
+  },
+  {
+    "tipo": "plazo",
+    "descripcion": "Las preguntas se recibirán hasta el 15 de octubre de 2026. El cierre de recepcion de ofertas será el 26 de octubre de 2026 a las 15:00 horas. El plazo de entrega de los colchones será de 20 dias corridos desde la emision de la orden de compra.",
+    "pagina": 3,
+    "cita": "7. Plazos. Las preguntas se recibiran hasta el 15 de octubre de 2026. El cierre de recepcion de ofertas sera el 26 de octubre de 2026 a las 15:00 horas. El plazo de entrega de los colchones sera de 20 dias corridos desde la emision de la orden de compra.",
+    "verificado": true
+  },
+  {
+    "tipo": "criterio_evaluacion",
+    "descripcion": "El precio tendrá un peso del 50%, la calidad tecnica del producto un peso del 30%, el plazo de entrega un peso del 15%, y el cumplimiento de requisitos formales un peso del 5%.",
+    "pagina": 4,
+    "cita": "8. Criterios de evaluacion. Precio: 50%. Calidad tecnica del producto: 30%. Plazo de entrega: 15%. Cumplimiento de requisitos formales: 5%.",
+    "verificado": true
+  },
+  {
+    "tipo": "multa",
+    "descripcion": "Por cada dia de atraso en la entrega se aplicará una multa de 1 UTM, con un tope de 10 UTM.",
+    "pagina": 4,
+    "cita": "9. Multas. Por cada dia de atraso en la entrega se aplicara una multa de 1 UTM, con un tope de 10 UTM.",
+    "verificado": true
+  }
+]
