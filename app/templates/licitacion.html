@@ -86,6 +86,40 @@
 <p class="sutil">Todavía no se han leído las bases de esta licitación.</p>
 {% endif %}
 
+{% if extraccion %}
+<h2 id="preguntas">Pregúntale a las bases</h2>
+<p class="sutil">La respuesta sale solo de las bases: el radar busca los fragmentos más relevantes (por palabras y por
+  significado) y el modelo responde citando la página. La cita se verifica contra el PDF.</p>
+<form method="post" action="/licitacion/{{ l.codigo }}/preguntar" class="pregunta">
+  <input type="text" name="pregunta" maxlength="{{ largo_pregunta }}" minlength="5" required
+         placeholder="Ej.: ¿qué pasa si me atraso en la entrega?">
+  <button {% if en_curso %}disabled{% endif %}>Preguntar</button>
+</form>
+<div class="ejemplos">
+  {% for e in ejemplos %}
+  <form method="post" action="/licitacion/{{ l.codigo }}/preguntar">
+    <input type="hidden" name="pregunta" value="{{ e }}">
+    <button class="secundario" {% if en_curso %}disabled{% endif %}>{{ e }}</button>
+  </form>
+  {% endfor %}
+</div>
+
+{% for p in preguntas %}
+<article class="respuesta {{ p.nivel }}">
+  <p class="la-pregunta">{{ p.pregunta }}</p>
+  <p>{% if p.encontrado %}<span title="{{ niveles[p.nivel][1] }}">{{ niveles[p.nivel][0] }}</span>{% else %}<span title="No está en las bases">ℹ️</span>{% endif %} {{ p.respuesta }}
+    {% if p.nivel == "interpretado" %}<span class="etiqueta urgente">Revisar: tiene datos que no están en la cita</span>{% endif %}
+    {% if p.encontrado and p.nivel == "sin_respaldo" %}<span class="etiqueta urgente">Sin respaldo en el PDF: no confíes en esta respuesta</span>{% endif %}
+  </p>
+  {% for c in p.citas if c.nivel != "sin_respaldo" %}
+  <blockquote>«{{ c.texto_real or c.cita }}» <span class="pagina">pág. {{ c.pagina }}</span></blockquote>
+  {% endfor %}
+  <p class="sutil">{{ p.fecha.strftime("%d/%m %H:%M") }} · {{ p.modelo }} · {{ "%.0f" | format(p.segundos) }} s
+    · fragmentos de las páginas {{ p.fragmentos | sort | unique | join(", ") }}</p>
+</article>
+{% endfor %}
+{% endif %}
+
 <div class="carga">
   <h3>{% if extraccion %}Volver a cargar las bases{% else %}Cargar las bases{% endif %}</h3>
   {% if not extraccion and l.puntaje and l.puntaje < puntaje_para_bases %}

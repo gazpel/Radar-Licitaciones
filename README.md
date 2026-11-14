@@ -25,6 +25,7 @@ garantías, plazos y criterios de evaluación, citando la página de donde sale 
 | Panel web y resumen diario (Sprint 4) | http://localhost:8000 |
 | Bases desde la carpeta de descargas (provisorio) | Con nombres de archivo anónimos, elige solo las bases correctas entre 3 PDF |
 | Puntaje con la ficha antes de pedir las bases (provisorio) | 5 licitaciones evaluadas con Granite en 49 s |
+| Preguntas a las bases con RAG híbrido (Sprint 5) | El fragmento correcto está entre los 6 recuperados en el 91,7% de 48 preguntas (palabras solas 79%, embeddings solos 83%) |
 
 Las bases usadas (`data/bases/prueba_sintetica.pdf`) son **ficticias**: un PDF de 4 páginas creado para la
 prueba, con una instrucción maliciosa escondida para probar los guardrails. Los resultados están en
@@ -70,6 +71,8 @@ python -m scripts.ingesta --perfil                               # recarga el pe
 uvicorn app.main:app --reload                                    # API web en http://localhost:8000/docs
 python -m scripts.extraer CODIGO bases.pdf                       # carga asistida: lee, verifica y guarda unas bases
 python -m scripts.comparar_modelos                               # compara modelos sobre las mismas bases
+python -m scripts.preguntar CODIGO "¿Qué pasa si me atraso?"     # pregunta a las bases (RAG)
+python -m scripts.evaluar_rag [--generar]                        # mide la búsqueda (y las respuestas) del RAG
 pytest                                                           # pruebas automáticas
 ```
 
@@ -92,6 +95,7 @@ con el Programador de tareas de Windows.
 - `app/bases.py` — carga asistida de bases: guarda, extrae y verifica
 - `app/conveniencia.py` — puntaje de conveniencia de 1 a 5 con razones
 - `app/busqueda.py` — embeddings y similitud coseno
+- `app/rag.py` — preguntas a las bases: fragmentos con embeddings, búsqueda híbrida (BM25 + embeddings) y respuesta con citas verificadas
 - `app/resumen.py` — resumen del día
 - `app/tareas.py` — tareas largas en segundo plano
 - `app/descargas.py` — busca las bases recién descargadas en la carpeta de descargas (provisorio)

@@ -91,3 +91,13 @@ def test_abrir_ficha_desde_el_panel_empieza_a_buscar_en_descargas(cliente, tmp_p
 def test_solo_se_leen_archivos_de_la_lista_de_candidatos(cliente):
     r = cliente.post("/licitacion/1-1-LE26/bases-descargadas", data={"nombre": "../../.env"})
     assert r.status_code == 404
+
+
+def test_preguntar_sin_bases_leidas_avisa(cliente):
+    r = cliente.post("/licitacion/1-1-LE26/preguntar", data={"pregunta": "¿Qué pasa si me atraso?"})
+    assert r.status_code == 409
+
+
+def test_pregunta_vacia_o_demasiado_larga_se_rechaza(cliente):
+    assert cliente.post("/licitacion/1-1-LE26/preguntar", data={"pregunta": "   ¿?  "}).status_code == 422
+    assert cliente.post("/licitacion/1-1-LE26/preguntar", data={"pregunta": "a" * 400}).status_code == 422

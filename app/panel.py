@@ -13,7 +13,7 @@ from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, Request, Up
 from fastapi.responses import PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from app import db, descargas, mercadopublico, tareas
+from app import db, descargas, mercadopublico, rag, tareas
 from app.bases import hallazgos_vigentes, ultima_extraccion
 from app.db import Licitacion
 from app.conveniencia import PUNTAJE_PARA_BASES
@@ -34,6 +34,12 @@ TIPOS = {  # en el orden en que se muestran
     "criterio_evaluacion": "Criterios de evaluación",
     "multa": "Multas",
 }
+EJEMPLOS_DE_PREGUNTAS = [
+    "¿Qué pasa si me atraso en la entrega?",
+    "¿En cuántos días me pagan?",
+    "¿Piden garantía de fiel cumplimiento? ¿De cuánto?",
+    "¿Cómo se evalúan las ofertas?",
+]
 NIVELES = {
     "textual": (ICONO[Nivel.textual], "Está tal cual en las bases"),
     "aproximada": (ICONO[Nivel.aproximada], "La cita del modelo difiere un poco: se muestra el texto real del PDF"),
@@ -85,6 +91,7 @@ def ficha(request: Request, codigo: str):
             raise HTTPException(status_code=404, detail="Licitación no encontrada")
         extraccion = ultima_extraccion(s, codigo)
         hallazgos = hallazgos_vigentes(s, codigo)
+        preguntas = rag.historial(s, codigo)
     grupos = defaultdict(list)
     ocultos = []
     for h in hallazgos:
@@ -104,8 +111,25 @@ def ficha(request: Request, codigo: str):
         "tipos": TIPOS, "niveles": NIVELES, "estado": tareas.estado(codigo), "en_curso": tareas.en_curso(codigo),
         "dias": dias_para_cierre(licitacion, datetime.now()), "dias_alerta": DIAS_ALERTA,
         "esperando": esperando, "encontrados": encontrados, "carpeta_descargas": descargas.carpeta(),
-        "puntaje_para_bases": PUNTAJE_PARA_BASES,
+        "puntaje_para_bases": PUNTAJE_PARA_BASES, "preguntas": preguntas, "ejemplos": EJEMPLOS_DE_PREGUNTAS,
+        "largo_pregunta": rag.LARGO_MAXIMO_PREGUNTA,
     })
+
+
+@router.post("/licitacion/{codigo}/preguntar", include_in_schema=False)
+def preguntar(codigo: str, segundo_plano: BackgroundTasks, pregunta: str = Form(...)):
+    """Pregunta a las bases (RAG). Se responde en segundo plano: toma unos segundos con el modelo local."""
+    if tareas.en_curso(codigo):
+        raise HTTPException(status_code=409, detail="Espera a que termine la tarea en curso")
+    pregunta = " ".join(pregunta.split())
+    if not 5 <= len(pregunta) <= rag.LARGO_MAXIMO_PREGUNTA:
+        raise HTTPException(status_code=422, detail=f"La pregunta debe tener entre 5 y {rag.LARGO_MAXIMO_PREGUNTA} caracteres")
+    with db.sesion() as s:
+        if ultima_extraccion(s, codigo) is None:
+            raise HTTPException(status_code=409, detail="Primero hay que leer las bases de esta licitación")
+    tareas.iniciar(codigo, f"Buscando la respuesta a «{pregunta}» en las bases")
+    segundo_plano.add_task(tareas.responder_pregunta, codigo, pregunta)
+    return RedirectResponse(f"/licitacion/{codigo}#preguntas", status_code=303)
 
 
 def _leer_en_segundo_plano(codigo: str, ruta: Path, descripcion: str) -> None:

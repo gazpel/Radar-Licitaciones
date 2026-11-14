@@ -11,6 +11,8 @@ Tablas:
 - Ingesta: el registro de cada ejecución (cuántas llegaron, pasaron y eran nuevas).
 - Extraccion: cada lectura de unas bases con un modelo (archivo, modelo, tiempo).
 - HallazgoGuardado: requisitos, plazos, etc. extraídos de las bases, con su nivel de verificación.
+- Fragmento: trozos de las bases con su embedding, para responder preguntas (RAG, app/rag.py).
+- Pregunta: cada pregunta hecha a las bases, con su respuesta, citas y nivel de verificación.
 """
 from datetime import datetime
 from pathlib import Path
@@ -90,6 +92,30 @@ class HallazgoGuardado(SQLModel, table=True):
     texto_real: str = ""  # lo que dice el PDF (difiere de la cita cuando el nivel es "aproximada")
     nivel: str  # textual, aproximada, interpretado o sin_respaldo (ver app/verificacion.py)
     confiable: bool = False
+
+
+class Fragmento(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    extraccion_id: int = Field(foreign_key="extraccion.id", index=True)
+    licitacion_codigo: str = Field(foreign_key="licitacion.codigo", index=True)
+    pagina: int
+    orden: int  # posición del fragmento dentro de las bases
+    texto: str
+    vector: bytes | None = None  # embedding (float32); vacío si no se pudo calcular
+
+
+class Pregunta(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    licitacion_codigo: str = Field(foreign_key="licitacion.codigo", index=True)
+    pregunta: str
+    encontrado: bool
+    respuesta: str
+    nivel: str  # textual, aproximada, interpretado o sin_respaldo
+    citas: list[dict] = Field(default_factory=list, sa_column=Column(JSON))  # pagina, cita, nivel, texto_real
+    fragmentos: list[int] = Field(default_factory=list, sa_column=Column(JSON))  # páginas de lo recuperado
+    modelo: str
+    segundos: float
+    fecha: NaiveDatetime = Field(default_factory=datetime.now)
 
 
 def _crear_motor(url: str):

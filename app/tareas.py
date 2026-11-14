@@ -1,4 +1,4 @@
-"""Tareas largas en segundo plano (leer bases, calcular la conveniencia) y su avance.
+"""Tareas largas en segundo plano (leer bases, calcular la conveniencia, responder preguntas) y su avance.
 
 Leer unas bases con un modelo local toma varios minutos: el panel no puede quedarse esperando.
 La tarea corre aparte y el panel consulta su estado cada pocos segundos.
@@ -10,7 +10,7 @@ from threading import Lock
 
 from app import db
 from app.bases import hallazgos_vigentes, procesar_bases
-from app import conveniencia
+from app import conveniencia, rag
 from app.db import Licitacion
 
 
@@ -61,6 +61,8 @@ def leer_bases(codigo: str, ruta_pdf: str) -> None:
 
         with db.sesion() as s:
             procesar_bases(s, codigo, ruta_pdf, al_avanzar=avance)
+            _actualizar(codigo, descripcion="Preparando las bases para responder preguntas (embeddings)")
+            rag.fragmentos_vigentes(s, codigo)
         _actualizar(codigo, descripcion="Calculando la conveniencia con los datos de las bases")
         evaluar_y_guardar(codigo)
         _actualizar(codigo, descripcion="Listo", terminada=True)
@@ -71,6 +73,15 @@ def leer_bases(codigo: str, ruta_pdf: str) -> None:
 def calcular_conveniencia(codigo: str) -> None:
     try:
         evaluar_y_guardar(codigo)
+        _actualizar(codigo, descripcion="Listo", terminada=True)
+    except Exception as error:
+        _actualizar(codigo, descripcion="Falló", terminada=True, error=str(error))
+
+
+def responder_pregunta(codigo: str, pregunta: str) -> None:
+    try:
+        with db.sesion() as s:
+            rag.preguntar(s, codigo, pregunta)
         _actualizar(codigo, descripcion="Listo", terminada=True)
     except Exception as error:
         _actualizar(codigo, descripcion="Falló", terminada=True, error=str(error))

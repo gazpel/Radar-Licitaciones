@@ -12,12 +12,13 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, UploadFile
+from pydantic import BaseModel, Field
 from fastapi.staticfiles import StaticFiles
 from sqlmodel import select
 
-from app import db, mercadopublico, panel
+from app import db, mercadopublico, panel, rag
 from app.bases import PDFSinTexto, hallazgos_vigentes, procesar_bases, ultima_extraccion
-from app.db import Empresa, Extraccion, HallazgoGuardado, Ingesta, Licitacion
+from app.db import Empresa, Extraccion, HallazgoGuardado, Ingesta, Licitacion, Pregunta
 
 
 @asynccontextmanager
@@ -90,3 +91,23 @@ def subir_bases(codigo: str, archivo: UploadFile) -> Extraccion:
         except (ValueError, mercadopublico.ErrorAPI) as error:
             raise HTTPException(status_code=404, detail=str(error))
         return ultima_extraccion(s, codigo)
+
+
+class PreguntaEntrada(BaseModel):
+    pregunta: str = Field(min_length=5, max_length=rag.LARGO_MAXIMO_PREGUNTA)
+
+
+@app.post("/licitaciones/{codigo}/preguntas")
+def preguntar_a_las_bases(codigo: str, entrada: PreguntaEntrada) -> Pregunta:
+    """RAG: responde una pregunta solo con las bases, con citas verificadas. Tarda unos segundos."""
+    with db.sesion() as s:
+        if ultima_extraccion(s, codigo) is None:
+            raise HTTPException(status_code=409, detail="Primero hay que cargar las bases de esta licitación")
+        rag.preguntar(s, codigo, entrada.pregunta)
+        return rag.historial(s, codigo, limite=1)[0]
+
+
+@app.get("/licitaciones/{codigo}/preguntas")
+def preguntas_hechas(codigo: str, limite: int = 10) -> list[Pregunta]:
+    with db.sesion() as s:
+        return rag.historial(s, codigo, limite)

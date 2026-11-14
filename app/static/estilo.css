@@ -111,6 +111,20 @@ button:disabled { background: #9aa3ae; cursor: not-allowed; }
 .pagina { color: var(--sutil); font-size: .8rem; white-space: nowrap; }
 blockquote { margin: 6px 0 0; padding-left: 10px; border-left: 2px solid var(--borde); color: var(--sutil); font-size: .88rem; }
 
+.pregunta { display: flex; gap: 8px; }
+.pregunta input { flex: 1; min-width: 0; font: inherit; padding: 8px 10px; border: 1px solid var(--borde); border-radius: 8px; }
+.pregunta button { margin-top: 0; }
+.ejemplos { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 16px; }
+.ejemplos form, .ejemplos button { margin: 0; }
+.ejemplos button { font-size: .85rem; padding: 4px 10px; }
+.respuesta { background: var(--superficie); border: 1px solid var(--borde); border-left: 4px solid var(--verde);
+  border-radius: 8px; padding: 10px 14px; margin-bottom: 10px; }
+.respuesta.aproximada { border-left-color: var(--amarillo); }
+.respuesta.interpretado { border-left-color: var(--naranjo); }
+.respuesta.sin_respaldo { border-left-color: #c4c9d1; }
+.respuesta p { margin: 4px 0; }
+.la-pregunta { font-weight: 600; }
+
 .carga { background: var(--superficie); border: 1px dashed var(--borde); border-radius: 10px; padding: 4px 16px 16px; margin-top: 32px; }
 .carga ol { padding-left: 18px; }
 .aviso.buscando { margin-top: 12px; }
