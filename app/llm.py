@@ -12,21 +12,38 @@ from langchain_ollama import ChatOllama
 from app.config import settings
 
 
+class RespuestaTruncada(ValueError):
+    """El modelo llegó al tope de tokens antes de terminar el JSON."""
+
+
 @cache
-def _modelo(esquema_json: str) -> ChatOllama:
-    """Un cliente por esquema (se reutiliza entre llamadas)."""
+def _modelo(nombre: str, think: bool | None, esquema_json: str) -> ChatOllama:
+    """Un cliente por combinación de modelo y esquema (se reutiliza entre llamadas)."""
     return ChatOllama(
-        model=settings.llm_model,
+        model=nombre,
         base_url=settings.ollama_url,
         temperature=0,  # respuestas reproducibles
         num_ctx=settings.llm_num_ctx,
+        num_predict=settings.llm_num_predict,
         format=json.loads(esquema_json),  # salida estructurada: Ollama obliga a cumplir el esquema
-        reasoning=settings.llm_think,  # False desactiva el razonamiento de Granite 4.2
+        reasoning=think,  # False desactiva el razonamiento de Granite 4.2
     )
 
 
-def generar_json(sistema: str, usuario: str, esquema: dict) -> dict:
-    """Pide al modelo una respuesta que cumpla el esquema JSON entregado (salida estructurada)."""
-    modelo = _modelo(json.dumps(esquema, sort_keys=True))
-    respuesta = modelo.invoke([SystemMessage(sistema), HumanMessage(usuario)])
-    return json.loads(respuesta.content)
+def generar_json(sistema: str, usuario: str, esquema: dict, modelo: str | None = None,
+                 think: bool | None = None) -> dict:
+    """Pide al modelo una respuesta que cumpla el esquema JSON entregado (salida estructurada).
+
+    Sin `modelo` ni `think` se usan LLM_MODEL y LLM_THINK del .env.
+    """
+    nombre = modelo or settings.llm_model
+    if think is None and modelo is None:
+        think = settings.llm_think
+    chat = _modelo(nombre, think, json.dumps(esquema, sort_keys=True))
+    respuesta = chat.invoke([SystemMessage(sistema), HumanMessage(usuario)])
+    if respuesta.response_metadata.get("done_reason") == "length":
+        raise RespuestaTruncada(f"La respuesta superó {settings.llm_num_predict} tokens")
+    try:
+        return json.loads(respuesta.content)
+    except json.JSONDecodeError as error:
+        raise RespuestaTruncada(f"JSON incompleto: {error}") from error

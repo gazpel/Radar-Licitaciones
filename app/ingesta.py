@@ -55,7 +55,7 @@ def _fecha(texto: str | None) -> datetime | None:
         return None
 
 
-def _desde_detalle(detalle: dict, motivos: list[str]) -> dict:
+def datos_licitacion(detalle: dict, motivos: list[str]) -> dict:
     """Traduce el JSON de la API a las columnas de la tabla Licitacion."""
     comprador = detalle.get("Comprador") or {}
     fechas = detalle.get("Fechas") or {}
@@ -118,7 +118,7 @@ def ejecutar(s: Session, api=mercadopublico, al_avanzar=None) -> ResultadoIngest
             resultado.descartadas.append(Descarte(codigo, lic.get("Nombre", ""), ev.rechazos))
             continue
 
-        datos = _desde_detalle(detalle, ev_nombre.motivos + ev.motivos)
+        datos = datos_licitacion(detalle, ev_nombre.motivos + ev.motivos)
         existente = s.get(Licitacion, codigo)
         if existente is None:
             nueva = Licitacion(codigo=codigo, ingesta_id=ingesta.id, **datos)

@@ -10,10 +10,9 @@ from datetime import datetime
 from fastapi import FastAPI, HTTPException, UploadFile
 from sqlmodel import select
 
-from app import db
-from app.db import Empresa, Ingesta, Licitacion
-from app.extraccion import Hallazgo, extraer
-from app.pdf import leer_paginas
+from app import db, mercadopublico
+from app.bases import PDFSinTexto, hallazgos_vigentes, procesar_bases, ultima_extraccion
+from app.db import Empresa, Extraccion, HallazgoGuardado, Ingesta, Licitacion
 
 
 @asynccontextmanager
@@ -60,9 +59,27 @@ def historial_ingestas(limite: int = 10) -> list[Ingesta]:
         return list(s.exec(select(Ingesta).order_by(Ingesta.id.desc()).limit(limite)))
 
 
-@app.post("/extraer")
-async def extraer_bases(archivo: UploadFile) -> list[Hallazgo]:
-    """Recibe las bases en PDF y devuelve requisitos, documentos, plazos, etc., con su página."""
+@app.get("/licitaciones/{codigo}/hallazgos")
+def hallazgos_licitacion(codigo: str) -> list[HallazgoGuardado]:
+    """Requisitos, documentos, plazos, etc. de la última lectura de las bases, con su nivel de verificación."""
+    with db.sesion() as s:
+        return hallazgos_vigentes(s, codigo)
+
+
+@app.post("/licitaciones/{codigo}/bases")
+def subir_bases(codigo: str, archivo: UploadFile) -> Extraccion:
+    """Carga asistida: recibe el PDF de las bases (descargado a mano desde la ficha) y lo procesa.
+
+    Puede tardar varios minutos con un modelo local. Es una función normal (no async) para que
+    FastAPI la ejecute en otro hilo y el resto de la API siga respondiendo mientras tanto.
+    """
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temporal:
-        temporal.write(await archivo.read())
-    return extraer(leer_paginas(temporal.name))
+        temporal.write(archivo.file.read())
+    with db.sesion() as s:
+        try:
+            procesar_bases(s, codigo, temporal.name)
+        except PDFSinTexto as error:
+            raise HTTPException(status_code=422, detail=str(error))
+        except (ValueError, mercadopublico.ErrorAPI) as error:
+            raise HTTPException(status_code=404, detail=str(error))
+        return ultima_extraccion(s, codigo)

@@ -12,6 +12,7 @@ from pathlib import Path
 from app import mercadopublico
 from app.extraccion import extraer
 from app.pdf import leer_paginas
+from app.verificacion import ICONO
 
 PALABRAS_RUBRO = ["colchon", "colchones", "colchoneta"]
 
@@ -37,8 +38,7 @@ def extraer_pdf(ruta: str):
     for tipo in sorted({h.tipo.value for h in hallazgos}):
         print(f"[{tipo.upper()}]")
         for h in (h for h in hallazgos if h.tipo.value == tipo):
-            marca = "OK" if h.verificado else "SIN VERIFICAR"
-            print(f"  - {h.descripcion}  (pág. {h.pagina}, {marca})")
+            print(f"  {ICONO[h.nivel]} {h.descripcion}  (pág. {h.pagina})")
         print()
 
     salida = Path("data/resultados") / f"{Path(ruta).stem}.json"
@@ -48,7 +48,7 @@ def extraer_pdf(ruta: str):
         encoding="utf-8",
     )
     verificados = sum(h.verificado for h in hallazgos)
-    print(f"Citas verificadas en el PDF: {verificados}/{len(hallazgos)}. Resultado guardado en {salida}")
+    print(f"Citas encontradas en el PDF (✅ o 🟡): {verificados}/{len(hallazgos)}. Resultado guardado en {salida}")
 
 
 if __name__ == "__main__":
