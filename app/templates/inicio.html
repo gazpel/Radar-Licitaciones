@@ -1,17 +1,73 @@
 {% extends "base.html" %}
+{% block meta %}{% if revisando %}<meta http-equiv="refresh" content="5">{% endif %}{% endblock %}
+
+{% macro tarjeta(l) %}
+{% set d = dias(l) %}
+<li class="tarjeta">
+  <div class="puntaje {% if l.puntaje %}p{{ l.puntaje }}{% else %}sin{% endif %}" title="Conveniencia de 1 a 5">
+    {{ l.puntaje or "–" }}<small>/5</small>
+  </div>
+  <div class="cuerpo">
+    <a class="titulo" href="/licitacion/{{ l.codigo }}">{{ l.nombre | titulo }}</a>
+    <p class="sutil">{{ l.codigo }} · {{ l.organismo | titulo }} · {{ l.region }}</p>
+    <p>
+      {% if l in r.nuevas %}<span class="etiqueta nueva">Nueva</span>{% endif %}
+      {% if l.fecha_cierre %}
+      <span class="etiqueta {% if d is not none and 0 <= d <= dias_alerta %}urgente{% endif %}">
+        {% if d is not none and d < 0 %}Cerró el {{ l.fecha_cierre.strftime("%d/%m/%Y") }}
+        {% else %}Cierra {{ l.fecha_cierre.strftime("%d/%m %H:%M") }}{% if d is not none %} · {% if d == 0 %}hoy{% else %}en {{ d }} días{% endif %}{% endif %}{% endif %}
+      </span>
+      {% endif %}
+      <span class="etiqueta">Monto: {{ l.monto | pesos }}</span>
+      {% if l.codigo in r.con_bases %}<span class="etiqueta ok">Bases leídas</span>
+      {% elif l in r.por_cargar %}<span class="etiqueta pendiente">Conviene leer las bases</span>
+      {% elif l.puntaje %}<span class="etiqueta">Bases opcionales (puntaje bajo)</span>
+      {% else %}<span class="etiqueta">Sin puntaje</span>{% endif %}
+    </p>
+    {% if l.conveniencia %}<p class="resumen">{{ l.conveniencia.resumen }}</p>{% endif %}
+  </div>
+</li>
+{% endmacro %}
+
 {% block contenido %}
 <section class="encabezado">
   <div>
     <h1>Resumen del {{ r.fecha.strftime("%d/%m/%Y") }}</h1>
     {% if r.empresa %}<p class="sutil">{{ r.empresa.nombre }} · {{ r.empresa.rubro }}</p>{% endif %}
   </div>
-  {% if r.ultima_ingesta %}
-  <p class="sutil derecha">Última revisión de Mercado Público:<br>{{ r.ultima_ingesta.fin.strftime("%d/%m/%Y %H:%M") }}</p>
-  {% endif %}
+  <div class="derecha">
+    {% if r.ultima_ingesta %}
+    <p class="sutil">Última revisión de Mercado Público:<br>{{ r.ultima_ingesta.fin.strftime("%d/%m/%Y %H:%M") }}</p>
+    {% endif %}
+    <form method="post" action="/revisar">
+      <button {% if revisando %}disabled{% endif %}>{% if revisando %}Revisando…{% else %}Revisar Mercado Público ahora{% endif %}</button>
+    </form>
+  </div>
 </section>
 
-{% if not r.ultima_ingesta %}
-<p class="aviso">Todavía no hay datos. Ejecuta <code>python -m scripts.ingesta</code>.</p>
+{% if revisando %}{% with tarea=revision, nota="Toma unos minutos; esta página se actualiza sola." %}{% include "_en_curso.html" %}{% endwith %}
+{% elif revision %}
+<p class="aviso {% if revision.error %}error{% else %}listo{% endif %}">
+  {{ revision.descripcion }}.{% if revision.error %} Con avisos: {{ revision.error }}{% endif %}
+</p>
+{% endif %}
+
+<form method="get" action="/" class="pregunta buscador">
+  <input type="search" name="q" value="{{ q }}" maxlength="100" placeholder="Buscar por código, nombre u organismo (p. ej. 2408-242-L126)">
+  <button>Buscar</button>
+</form>
+
+{% if q %}
+<h2>Resultados para «{{ q }}»</h2>
+<p class="sutil"><a href="/">Volver al resumen</a></p>
+<ul class="lista">
+  {% for l in resultados %}{{ tarjeta(l) }}
+  {% else %}<li class="sutil">No hay licitaciones guardadas que coincidan.</li>{% endfor %}
+</ul>
+
+{% elif not r.ultima_ingesta %}
+<p class="aviso">Todavía no hay datos. Usa el botón «Revisar Mercado Público ahora» o ejecuta <code>python -m scripts.ingesta</code>.</p>
+
 {% else %}
 <section class="cifras">
   <div class="cifra"><strong>{{ r.nuevas | length }}</strong><span>nuevas (últimas 24 h)</span></div>
@@ -24,32 +80,16 @@
 <h2>Licitaciones abiertas</h2>
 <p class="sutil">Ordenadas por conveniencia; las que aún no tienen puntaje van al final.</p>
 <ul class="lista">
-  {% for l in r.abiertas %}
-  {% set d = dias(l) %}
-  <li class="tarjeta">
-    <div class="puntaje {% if l.puntaje %}p{{ l.puntaje }}{% else %}sin{% endif %}" title="Conveniencia de 1 a 5">
-      {{ l.puntaje or "–" }}<small>/5</small>
-    </div>
-    <div class="cuerpo">
-      <a class="titulo" href="/licitacion/{{ l.codigo }}">{{ l.nombre }}</a>
-      <p class="sutil">{{ l.codigo }} · {{ l.organismo }} · {{ l.region }}</p>
-      <p>
-        {% if l in r.nuevas %}<span class="etiqueta nueva">Nueva</span>{% endif %}
-        <span class="etiqueta {% if d is not none and d <= dias_alerta %}urgente{% endif %}">
-          Cierra {{ l.fecha_cierre.strftime("%d/%m %H:%M") }}{% if d is not none %} · {% if d == 0 %}hoy{% else %}en {{ d }} días{% endif %}{% endif %}
-        </span>
-        <span class="etiqueta">Monto: {{ l.monto | pesos }}</span>
-        {% if l.codigo in r.con_bases %}<span class="etiqueta ok">Bases leídas</span>
-        {% elif l in r.por_cargar %}<span class="etiqueta pendiente">Conviene leer las bases</span>
-        {% elif l.puntaje %}<span class="etiqueta">Bases opcionales (puntaje bajo)</span>
-        {% else %}<span class="etiqueta">Sin puntaje</span>{% endif %}
-      </p>
-      {% if l.conveniencia %}<p class="resumen">{{ l.conveniencia.resumen }}</p>{% endif %}
-    </div>
-  </li>
-  {% else %}
-  <li class="sutil">No hay licitaciones abiertas que calcen con el perfil.</li>
-  {% endfor %}
+  {% for l in r.abiertas %}{{ tarjeta(l) }}
+  {% else %}<li class="sutil">No hay licitaciones abiertas que calcen con el perfil.</li>{% endfor %}
 </ul>
+
+{% if anteriores %}
+<details class="motivos anteriores">
+  <summary>Cerradas o anteriores ({{ anteriores | length }})</summary>
+  <p class="sutil">Ya no se puede ofertar, pero se conservan sus bases leídas y las preguntas hechas.</p>
+  <ul class="lista">{% for l in anteriores %}{{ tarjeta(l) }}{% endfor %}</ul>
+</details>
+{% endif %}
 {% endif %}
 {% endblock %}

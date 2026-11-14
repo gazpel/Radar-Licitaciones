@@ -3,8 +3,8 @@
 {% block titulo %}{{ l.codigo }} · Radar de Licitaciones{% endblock %}
 {% block contenido %}
 <p><a href="/">← Volver al resumen</a></p>
-<h1>{{ l.nombre }}</h1>
-<p class="sutil">{{ l.codigo }} · {{ l.organismo }} · {{ l.region }}{% if l.comuna %} ({{ l.comuna }}){% endif %}</p>
+<h1>{{ l.nombre | titulo }}</h1>
+<p class="sutil">{{ l.codigo }} · {{ l.organismo | titulo }} · {{ l.region }}{% if l.comuna %} ({{ l.comuna }}){% endif %}</p>
 
 <section class="datos">
   <div><span>Cierre</span><strong class="{% if dias is not none and dias <= dias_alerta %}rojo{% endif %}">
@@ -20,11 +20,10 @@
   <ul>{% for m in l.motivos %}<li>{{ m }}</li>{% endfor %}</ul>
 </details>
 
-{% if estado %}
-<p class="aviso {% if estado.error %}error{% elif not en_curso %}listo{% endif %}">
-  {% if en_curso %}⏳ {{ estado.descripcion }}… (esta página se actualiza sola)
-  {% elif estado.error %}No se pudo completar: {{ estado.error }}
-  {% else %}✔ Proceso terminado.{% endif %}
+{% if en_curso %}{% with tarea=estado, nota=None %}{% include "_en_curso.html" %}{% endwith %}
+{% elif estado %}
+<p class="aviso {% if estado.error %}error{% else %}listo{% endif %}">
+  {% if estado.error %}No se pudo completar: {{ estado.error }}{% else %}✔ Proceso terminado.{% endif %}
 </p>
 {% endif %}
 
@@ -45,6 +44,7 @@
 {% else %}
 <p class="sutil">Aún no se ha evaluado.</p>
 {% endif %}
+{% if en_curso %}{% with tarea=estado, nota=None %}{% include "_en_curso.html" %}{% endwith %}{% endif %}
 <form method="post" action="/licitacion/{{ l.codigo }}/conveniencia">
   <button {% if en_curso %}disabled{% endif %}>{% if l.conveniencia %}Recalcular{% else %}Calcular{% endif %} conveniencia</button>
 </form>
@@ -90,6 +90,7 @@
 <h2 id="preguntas">Pregúntale a las bases</h2>
 <p class="sutil">La respuesta sale solo de las bases: el radar busca los fragmentos más relevantes (por palabras y por
   significado) y el modelo responde citando la página. La cita se verifica contra el PDF.</p>
+{% if en_curso %}{% with tarea=estado, nota=None %}{% include "_en_curso.html" %}{% endwith %}{% endif %}
 <form method="post" action="/licitacion/{{ l.codigo }}/preguntar" class="pregunta">
   <input type="text" name="pregunta" maxlength="{{ largo_pregunta }}" minlength="5" required
          placeholder="Ej.: ¿qué pasa si me atraso en la entrega?">
@@ -156,6 +157,7 @@
       (la descarga requiere una persona: el sitio la protege con un captcha).</li>
     <li>El radar lo detecta en tu carpeta de descargas y lo lee solo. Si no lo encuentra, súbelo aquí:</li>
   </ol>
+  {% if en_curso %}{% with tarea=estado, nota=None %}{% include "_en_curso.html" %}{% endwith %}{% endif %}
   <form method="post" action="/licitacion/{{ l.codigo }}/bases" enctype="multipart/form-data">
     <input type="file" name="archivo" accept="application/pdf" required>
     <button {% if en_curso %}disabled{% endif %}>Leer bases</button>

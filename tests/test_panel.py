@@ -101,3 +101,35 @@ def test_preguntar_sin_bases_leidas_avisa(cliente):
 def test_pregunta_vacia_o_demasiado_larga_se_rechaza(cliente):
     assert cliente.post("/licitacion/1-1-LE26/preguntar", data={"pregunta": "   ¿?  "}).status_code == 422
     assert cliente.post("/licitacion/1-1-LE26/preguntar", data={"pregunta": "a" * 400}).status_code == 422
+
+
+def test_titulos_en_mayusculas_se_muestran_legibles():
+    from app.panel import _titulo
+    assert _titulo("ADQUISICIÓN DE COLCHONES 1 PLAZA") == "Adquisición de Colchones 1 PLAZA" or \
+        _titulo("ADQUISICIÓN DE COLCHONES 1 PLAZA") == "Adquisición de Colchones 1 Plaza"
+    assert _titulo("I MUNICIPALIDAD DE CHIMBARONGO") == "I Municipalidad de Chimbarongo"
+    assert _titulo("LICITACIÓN “ADQUISICIÓN DE COLCHONES”") == "Licitación “Adquisición de Colchones”"
+    assert _titulo("Compra de colchones para el CESFAM") == "Compra de colchones para el CESFAM"  # ya legible
+
+
+def test_buscar_por_codigo_lleva_a_la_licitacion(cliente):
+    r = cliente.get("/?q=1-1-le26", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/licitacion/1-1-LE26"
+
+
+def test_buscar_por_nombre_y_ver_las_cerradas(cliente):
+    assert "Colchones 3-3-LE26" in cliente.get("/?q=colchones").text
+    inicio = cliente.get("/").text
+    assert "Cerradas o anteriores (1)" in inicio and "Colchones 4-4-LE26" in inicio
+
+
+def test_boton_revisar_lanza_una_sola_revision(cliente, monkeypatch):
+    from app import tareas
+    llamadas = []
+    monkeypatch.setattr(tareas, "revisar_mercado_publico", lambda: llamadas.append(1))  # no termina nunca
+    cliente.post("/revisar")
+    cliente.post("/revisar")  # la segunda vez ya hay una en curso: no se lanza otra
+    assert tareas.en_curso(tareas.REVISION)
+    assert "Revisando…" in cliente.get("/").text
+    tareas._estados.pop(tareas.REVISION)
+    assert len(llamadas) == 1

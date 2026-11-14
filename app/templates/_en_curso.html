@@ -1,0 +1,9 @@
+{# Aviso de tarea en curso: título destacado con un círculo girando y el detalle como información. #}
+<div class="en-curso" role="status" aria-live="polite">
+  <span class="girando" aria-hidden="true"></span>
+  <div>
+    <strong>{{ tarea.titulo }}…</strong>
+    <p>{{ tarea.descripcion }}.</p>
+    <p class="sutil">{{ nota or "Los botones se activan cuando termine; esta página se actualiza sola." }}</p>
+  </div>
+</div>

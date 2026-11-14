@@ -16,8 +16,9 @@ from app.db import Licitacion
 
 @dataclass
 class Estado:
-    descripcion: str
+    descripcion: str  # el detalle (cambia con el avance)
     inicio: datetime
+    titulo: str = "Procesando"  # lo que se destaca en el panel: "Buscando respuesta", "Leyendo las bases"...
     terminada: bool = False
     error: str = ""
 
@@ -41,9 +42,9 @@ def _actualizar(codigo: str, **cambios) -> None:
             setattr(_estados[codigo], clave, valor)
 
 
-def iniciar(codigo: str, descripcion: str) -> None:
+def iniciar(codigo: str, descripcion: str, titulo: str = "Procesando") -> None:
     with _candado:
-        _estados[codigo] = Estado(descripcion, datetime.now())
+        _estados[codigo] = Estado(descripcion, datetime.now(), titulo)
 
 
 def evaluar_y_guardar(codigo: str) -> None:
@@ -85,3 +86,30 @@ def responder_pregunta(codigo: str, pregunta: str) -> None:
         _actualizar(codigo, descripcion="Listo", terminada=True)
     except Exception as error:
         _actualizar(codigo, descripcion="Falló", terminada=True, error=str(error))
+
+
+REVISION = "__revision__"  # clave del estado de la revisión de Mercado Público (no es una licitación)
+
+
+def revisar_mercado_publico() -> None:
+    """Lo mismo que python -m scripts.ingesta, lanzado desde el panel: ingesta + puntaje con la ficha."""
+    from app.conveniencia import puntuar_sin_puntaje
+    from app.ingesta import ejecutar, similitud_configurada
+
+    try:
+        def avance_detalle(i, total, codigo):
+            _actualizar(REVISION, descripcion=f"Revisando el detalle de las candidatas: {i} de {total}")
+
+        def avance_puntaje(i, total, codigo):
+            _actualizar(REVISION, descripcion=f"Calculando el puntaje con la ficha: {i} de {total}")
+
+        _actualizar(REVISION, descripcion="Descargando el listado de licitaciones activas de Mercado Público")
+        with db.sesion() as s:
+            r = ejecutar(s, al_avanzar=avance_detalle, similitud=similitud_configurada())
+            _, errores = puntuar_sin_puntaje(s, al_avanzar=avance_puntaje)
+        resumen = (f"Listo: {r.ingesta.activas} activas revisadas, {r.ingesta.relevantes} del rubro, "
+                   f"{r.ingesta.nuevas} nuevas")
+        _actualizar(REVISION, descripcion=resumen, terminada=True,
+                    error="; ".join(r.errores + errores)[:300])
+    except Exception as error:
+        _actualizar(REVISION, descripcion="Falló", terminada=True, error=str(error))

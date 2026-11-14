@@ -11,6 +11,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, Request, UploadFile
 from fastapi.responses import PlainTextResponse, RedirectResponse
+from sqlmodel import col, or_, select
 from fastapi.templating import Jinja2Templates
 
 from app import db, descargas, mercadopublico, rag, tareas
@@ -56,18 +57,68 @@ def _tamano(bytes_: int) -> str:
     return f"{bytes_ / 1024:.0f} KB" if bytes_ < 1024 * 1024 else f"{bytes_ / 1024 / 1024:.1f} MB".replace(".", ",")
 
 
+PALABRAS_MENORES = {"a", "al", "con", "de", "del", "e", "el", "en", "la", "las", "los", "o", "para", "por", "u", "y"}
+
+
+def _titulo(texto: str) -> str:
+    """Mercado Público entrega muchos nombres EN MAYÚSCULAS: se muestran como título, más fáciles de leer.
+
+    "ADQUISICIÓN DE COLCHONES 1 PLAZA" -> "Adquisición de Colchones 1 Plaza". Si el texto ya viene
+    con minúsculas, se deja tal cual (lo escribió así el organismo).
+    """
+    letras = [c for c in texto if c.isalpha()]
+    if not letras or sum(c.isupper() for c in letras) / len(letras) < 0.7:
+        return texto
+    palabras = []
+    for i, palabra in enumerate(texto.split()):
+        minuscula = palabra.lower()
+        if i > 0 and minuscula in PALABRAS_MENORES:
+            palabras.append(minuscula)
+        elif palabra in ("I", "II", "III") or any(c.isdigit() for c in palabra):
+            palabras.append(palabra)  # "I Municipalidad", "N°138", "1 PLAZA"
+        else:  # mayúscula en la primera letra, aunque la palabra empiece con comillas o paréntesis
+            i_letra = next((j for j, c in enumerate(minuscula) if c.isalpha()), 0)
+            palabras.append(minuscula[:i_letra] + minuscula[i_letra:i_letra + 1].upper() + minuscula[i_letra + 1:])
+    return " ".join(palabras)
+
+
 plantillas.env.filters["pesos"] = _pesos
+plantillas.env.filters["titulo"] = _titulo
 plantillas.env.filters["tamano"] = _tamano
 
 
 @router.get("/", include_in_schema=False)
-def inicio(request: Request):
+def inicio(request: Request, q: str = ""):
+    q = " ".join(q.split())[:100]
     with db.sesion() as s:
         r = resumen_del_dia(s)
+        if q:
+            exacta = s.get(Licitacion, q.upper())
+            if exacta is not None:  # se escribió un código: directo a la licitación
+                return RedirectResponse(f"/licitacion/{exacta.codigo}", status_code=303)
+            patron = f"%{q}%"
+            resultados = list(s.exec(select(Licitacion).where(or_(
+                col(Licitacion.codigo).ilike(patron), col(Licitacion.nombre).ilike(patron),
+                col(Licitacion.organismo).ilike(patron))).order_by(col(Licitacion.fecha_cierre).desc()).limit(50)))
+        else:
+            resultados = []
+        abiertas = {l.codigo for l in r.abiertas}
+        anteriores = [l for l in s.exec(select(Licitacion).order_by(col(Licitacion.fecha_cierre).desc()))
+                      if l.codigo not in abiertas]
     return plantillas.TemplateResponse(request, "inicio.html", {
         "r": r, "dias": lambda l: dias_para_cierre(l, r.fecha), "dias_alerta": DIAS_ALERTA,
-        "puntaje_para_bases": PUNTAJE_PARA_BASES,
+        "puntaje_para_bases": PUNTAJE_PARA_BASES, "q": q, "resultados": resultados, "anteriores": anteriores,
+        "revision": tareas.estado(tareas.REVISION), "revisando": tareas.en_curso(tareas.REVISION),
     })
+
+
+@router.post("/revisar", include_in_schema=False)
+def revisar_ahora():
+    """Botón "Revisar Mercado Público ahora": la misma ingesta diaria, en segundo plano."""
+    if not tareas.en_curso(tareas.REVISION):
+        tareas.iniciar(tareas.REVISION, "Empezando la revisión de Mercado Público", "Revisando Mercado Público")
+        threading.Thread(target=tareas.revisar_mercado_publico, daemon=True).start()
+    return RedirectResponse("/", status_code=303)
 
 
 @router.get("/resumen.txt", include_in_schema=False, response_class=PlainTextResponse)
@@ -127,7 +178,9 @@ def preguntar(codigo: str, segundo_plano: BackgroundTasks, pregunta: str = Form(
     with db.sesion() as s:
         if ultima_extraccion(s, codigo) is None:
             raise HTTPException(status_code=409, detail="Primero hay que leer las bases de esta licitación")
-    tareas.iniciar(codigo, f"Buscando la respuesta a «{pregunta}» en las bases")
+    tareas.iniciar(codigo, f"Pregunta: «{pregunta}». Se buscan los fragmentos más relevantes de las bases y el "
+                           "modelo local redacta la respuesta con su cita (unos 20 a 30 segundos)",
+                   "Buscando respuesta")
     segundo_plano.add_task(tareas.responder_pregunta, codigo, pregunta)
     return RedirectResponse(f"/licitacion/{codigo}#preguntas", status_code=303)
 
@@ -135,7 +188,7 @@ def preguntar(codigo: str, segundo_plano: BackgroundTasks, pregunta: str = Form(
 def _leer_en_segundo_plano(codigo: str, ruta: Path, descripcion: str) -> None:
     """Como BackgroundTasks solo existe en un POST, aquí se usa un hilo (el panel es de una sola persona)."""
     descargas.dejar_de_esperar(codigo)
-    tareas.iniciar(codigo, descripcion)
+    tareas.iniciar(codigo, descripcion, "Leyendo las bases")
     threading.Thread(target=tareas.leer_bases, args=(codigo, str(ruta)), daemon=True).start()
 
 
@@ -183,7 +236,7 @@ def subir_bases(codigo: str, archivo: UploadFile, segundo_plano: BackgroundTasks
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temporal:
         temporal.write(contenido)
     descargas.dejar_de_esperar(codigo)
-    tareas.iniciar(codigo, "En cola para leer las bases")
+    tareas.iniciar(codigo, "En cola para leer las bases", "Leyendo las bases")
     segundo_plano.add_task(tareas.leer_bases, codigo, temporal.name)
     return RedirectResponse(f"/licitacion/{codigo}", status_code=303)
 
@@ -191,6 +244,7 @@ def subir_bases(codigo: str, archivo: UploadFile, segundo_plano: BackgroundTasks
 @router.post("/licitacion/{codigo}/conveniencia", include_in_schema=False)
 def recalcular_conveniencia(codigo: str, segundo_plano: BackgroundTasks):
     if not tareas.en_curso(codigo):
-        tareas.iniciar(codigo, "Calculando la conveniencia")
+        tareas.iniciar(codigo, "El modelo local evalúa la ficha y los datos verificados de las bases "
+                               "(unos 10 a 30 segundos)", "Calculando la conveniencia")
         segundo_plano.add_task(tareas.calcular_conveniencia, codigo)
     return RedirectResponse(f"/licitacion/{codigo}", status_code=303)
