@@ -17,6 +17,7 @@
   <div class="cifra"><strong>{{ r.nuevas | length }}</strong><span>nuevas (últimas 24 h)</span></div>
   <div class="cifra"><strong>{{ r.abiertas | length }}</strong><span>abiertas del rubro</span></div>
   <div class="cifra {% if r.cierran_pronto %}urgente{% endif %}"><strong>{{ r.cierran_pronto | length }}</strong><span>cierran en {{ dias_alerta }} días o menos</span></div>
+  <div class="cifra {% if r.por_cargar %}pendiente{% endif %}"><strong>{{ r.por_cargar | length }}</strong><span>con bases por cargar (puntaje {{ puntaje_para_bases }} o más)</span></div>
   <div class="cifra"><strong>{{ r.ultima_ingesta.activas }}</strong><span>activas revisadas en total</span></div>
 </section>
 
@@ -38,8 +39,10 @@
           Cierra {{ l.fecha_cierre.strftime("%d/%m %H:%M") }}{% if d is not none %} · {% if d == 0 %}hoy{% else %}en {{ d }} días{% endif %}{% endif %}
         </span>
         <span class="etiqueta">Monto: {{ l.monto | pesos }}</span>
-        {% if l.codigo in con_bases %}<span class="etiqueta ok">Bases leídas</span>
-        {% else %}<span class="etiqueta pendiente">Faltan las bases</span>{% endif %}
+        {% if l.codigo in r.con_bases %}<span class="etiqueta ok">Bases leídas</span>
+        {% elif l in r.por_cargar %}<span class="etiqueta pendiente">Conviene leer las bases</span>
+        {% elif l.puntaje %}<span class="etiqueta">Bases opcionales (puntaje bajo)</span>
+        {% else %}<span class="etiqueta">Sin puntaje</span>{% endif %}
       </p>
       {% if l.conveniencia %}<p class="resumen">{{ l.conveniencia.resumen }}</p>{% endif %}
     </div>

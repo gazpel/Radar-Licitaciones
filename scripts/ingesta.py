@@ -3,10 +3,15 @@
 Uso (desde la carpeta radar-licitaciones, con el entorno virtual activo):
     python -m scripts.ingesta                -> consulta la API, filtra y guarda (se puede repetir sin duplicar)
     python -m scripts.ingesta --perfil       -> (re)carga el perfil desde data/empresa_colchoneria.json
+    python -m scripts.ingesta --sin-puntaje  -> no calcula el puntaje con la ficha (no usa el LLM)
+
+Al final da un primer puntaje de conveniencia, solo con la ficha, a las abiertas que no tienen:
+así el resumen dice a cuáles conviene descargarles las bases (opción B, provisoria).
 """
 import sys
 
 from app import db
+from app.conveniencia import PUNTAJE_PARA_BASES, puntuar_sin_puntaje
 from app.ingesta import cargar_empresa, ejecutar, similitud_configurada
 
 PERFIL = "data/empresa_colchoneria.json"
@@ -44,6 +49,17 @@ def main():
                     print(f"           - {rechazo}")
         for error in r.errores:
             print(f"  [ERROR] {error}")
+
+        if "--sin-puntaje" not in sys.argv:
+            print("
+Puntaje de conveniencia con la ficha (sin bases)...")
+            puntuadas, errores = puntuar_sin_puntaje(
+                s, al_avanzar=lambda i, total, codigo: print(f"  Evaluando {i}/{total}: {codigo}", flush=True))
+            for lic in puntuadas:
+                marca = "LEER BASES" if lic.puntaje >= PUNTAJE_PARA_BASES else "opcional  "
+                print(f"  {lic.puntaje}/5 [{marca}] {lic.codigo:<16} {lic.nombre[:60]}")
+            for error in errores:
+                print(f"  [ERROR] {error}")
 
 
 if __name__ == "__main__":

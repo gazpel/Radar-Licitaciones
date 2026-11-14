@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block meta %}{% if en_curso %}<meta http-equiv="refresh" content="5">{% endif %}{% endblock %}
+{% block meta %}{% if en_curso or esperando %}<meta http-equiv="refresh" content="5">{% endif %}{% endblock %}
 {% block titulo %}{{ l.codigo }} · Radar de Licitaciones{% endblock %}
 {% block contenido %}
 <p><a href="/">← Volver al resumen</a></p>
@@ -88,14 +88,44 @@
 
 <div class="carga">
   <h3>{% if extraccion %}Volver a cargar las bases{% else %}Cargar las bases{% endif %}</h3>
+  {% if not extraccion and l.puntaje and l.puntaje < puntaje_para_bases %}
+  <p class="sutil">Con la ficha obtuvo {{ l.puntaje }}/5: leer sus bases es opcional.</p>
+  {% endif %}
+
+  {% if esperando %}
+  <div class="aviso buscando">
+    <p>🔎 Buscando PDF nuevos en <code>{{ carpeta_descargas }}</code> desde las {{ esperando.strftime("%H:%M") }}…
+      Descarga las bases en la pestaña de Mercado Público; esta página se actualiza sola.</p>
+    {% if encontrados %}
+    <p>Encontré estos archivos nuevos. ¿Cuál corresponde a las bases?</p>
+    <ul class="encontrados">
+      {% for c in encontrados %}
+      <li>
+        <form method="post" action="/licitacion/{{ l.codigo }}/bases-descargadas">
+          <input type="hidden" name="nombre" value="{{ c.nombre }}">
+          <button>Leer este</button>
+        </form>
+        <span>{{ c.nombre }} <small class="sutil">({{ c.tamano | tamano }}, descargado a las {{ c.fecha.strftime("%H:%M") }})</small>
+          {% if c.menciona_codigo %}<span class="etiqueta ok">menciona el código</span>
+          {% else %}<span class="etiqueta urgente">no menciona el código: ¿es de otra licitación?</span>{% endif %}
+          {% if c.parece_bases %}<span class="etiqueta ok">parece ser las bases</span>{% endif %}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    <form method="post" action="/licitacion/{{ l.codigo }}/dejar-de-buscar"><button class="secundario">Dejar de buscar</button></form>
+  </div>
+  {% endif %}
+
   <ol>
-    <li>Abre la <a href="{{ l.url_ficha }}" target="_blank" rel="noopener">ficha en Mercado Público</a> y descarga el PDF de las bases
+    <li>Abre la <a href="/licitacion/{{ l.codigo }}/ficha-mp" target="_blank" rel="noopener">ficha en Mercado Público</a> y descarga el PDF de las bases
       (la descarga requiere una persona: el sitio la protege con un captcha).</li>
-    <li>Súbelo aquí. La lectura toma unos minutos con el modelo local.</li>
+    <li>El radar lo detecta en tu carpeta de descargas y lo lee solo. Si no lo encuentra, súbelo aquí:</li>
   </ol>
   <form method="post" action="/licitacion/{{ l.codigo }}/bases" enctype="multipart/form-data">
     <input type="file" name="archivo" accept="application/pdf" required>
     <button {% if en_curso %}disabled{% endif %}>Leer bases</button>
   </form>
+  <p class="sutil">Solución provisoria: se busca una forma de obtener las bases sin descargarlas a mano.</p>
 </div>
 {% endblock %}

@@ -23,6 +23,8 @@ garantías, plazos y criterios de evaluación, citando la página de donde sale 
 | Instrucción maliciosa escondida en un PDF | Ignorada por los tres modelos |
 | Embeddings para filtrar por título (Sprint 3) | No mejoran a las palabras clave: desactivados por defecto |
 | Panel web y resumen diario (Sprint 4) | http://localhost:8000 |
+| Bases desde la carpeta de descargas (provisorio) | Con nombres de archivo anónimos, elige solo las bases correctas entre 3 PDF |
+| Puntaje con la ficha antes de pedir las bases (provisorio) | 5 licitaciones evaluadas con Granite en 49 s |
 
 Las bases usadas (`data/bases/prueba_sintetica.pdf`) son **ficticias**: un PDF de 4 páginas creado para la
 prueba, con una instrucción maliciosa escondida para probar los guardrails. Los resultados están en
@@ -31,7 +33,8 @@ prueba, con una instrucción maliciosa escondida para probar los guardrails. Los
 ## Requisitos
 
 - Python 3.12 o superior
-- [Ollama](https://ollama.com) con un modelo local (`ollama pull granite4.2:8b` o `ollama pull mistral`)
+- [Ollama](https://ollama.com) con un modelo local: `ollama pull granite4.2:8b` (por defecto);
+  alternativas probadas: `mistral` y `gemma4:e2b`
 - Ticket de la API de Mercado Público ([chilecompra.cl/api](https://www.chilecompra.cl/api/))
 
 ## Instalación
@@ -43,13 +46,26 @@ pip install -r requirements.txt
 copy .env.example .env      # y completar MP_TICKET
 ```
 
-En `.env`, `LLM_MODEL` elige el modelo y `LLM_THINK=false` desactiva el modo razonamiento de Granite.
+En `.env`, `LLM_MODEL` elige el modelo (por defecto `granite4.2:8b`) y `LLM_THINK=false` desactiva el modo
+razonamiento de Granite. Con `mistral` o `gemma4:e2b`, deja `LLM_THINK=` vacío.
+
+## Cómo se obtienen las bases (provisorio: buscar una mejor solución)
+
+Mercado Público no entrega los adjuntos por su API y la ficha web los protege con reCAPTCHA, que no se debe
+saltar. Mientras se busca una solución de fondo (por ejemplo, un acceso autorizado por ChileCompra):
+
+- **Solo se piden las bases que valen la pena (opción B):** al terminar la ingesta, cada licitación nueva
+  recibe un primer puntaje solo con la ficha. El panel marca "Conviene leer las bases" las de puntaje 3 o más.
+- **Sin subir archivos (opción A):** el enlace "ficha en Mercado Público" del panel deja al radar esperando.
+  Cuando la persona descarga las bases, el radar las encuentra en su carpeta de descargas (también dentro de
+  un ZIP). Si un solo PDF menciona el código y parece ser las bases, lo lee solo; si hay dudas, pregunta cuál.
 
 ## Uso
 
 ```bash
 scripts\panel.bat                                                 # panel web en http://localhost:8000
-python -m scripts.ingesta                                        # trae, filtra y guarda las licitaciones del perfil
+python -m scripts.ingesta                                        # trae, filtra, guarda y da un primer puntaje con la ficha
+python -m scripts.ingesta --sin-puntaje                          # lo mismo, sin usar el LLM
 python -m scripts.ingesta --perfil                               # recarga el perfil desde data/empresa_colchoneria.json
 uvicorn app.main:app --reload                                    # API web en http://localhost:8000/docs
 python -m scripts.extraer CODIGO bases.pdf                       # carga asistida: lee, verifica y guarda unas bases
@@ -78,8 +94,9 @@ con el Programador de tareas de Windows.
 - `app/busqueda.py` — embeddings y similitud coseno
 - `app/resumen.py` — resumen del día
 - `app/tareas.py` — tareas largas en segundo plano
+- `app/descargas.py` — busca las bases recién descargadas en la carpeta de descargas (provisorio)
 - `scripts/demo.py` — mini-demo por consola (Evaluación 1)
 - `scripts/ingesta.py` — ingesta por consola
 - `data/empresa_colchoneria.json` — perfil **sintético** de la empresa del caso de estudio
-- `tests/` — pruebas del filtro y de la ingesta (con una API falsa, sin internet)
+- `tests/` — pruebas automáticas (con una API y un modelo falsos: sin internet ni LLM)
 - `docs/diagramas/` — diagramas UML de casos de uso y de secuencia (draw.io)

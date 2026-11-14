@@ -77,3 +77,17 @@ def test_subir_algo_que_no_es_pdf_se_rechaza(cliente):
 def test_ficha_avisa_si_la_licitacion_ya_cerro(empresa):
     texto = _ficha(licitacion("1-1-LE26", dias_cierre=-3), empresa, AHORA)
     assert "YA CERRÓ" in texto
+
+
+def test_abrir_ficha_desde_el_panel_empieza_a_buscar_en_descargas(cliente, tmp_path, monkeypatch):
+    from app import descargas
+    monkeypatch.setattr(descargas.settings, "carpeta_descargas", str(tmp_path / "descargas_vacia"))
+    r = cliente.get("/licitacion/1-1-LE26/ficha-mp", follow_redirects=False)
+    assert r.status_code == 303 and "mercadopublico.cl" in r.headers["location"]
+    assert "Buscando PDF nuevos" in cliente.get("/licitacion/1-1-LE26").text
+    descargas.dejar_de_esperar("1-1-LE26")
+
+
+def test_solo_se_leen_archivos_de_la_lista_de_candidatos(cliente):
+    r = cliente.post("/licitacion/1-1-LE26/bases-descargadas", data={"nombre": "../../.env"})
+    assert r.status_code == 404

@@ -7,7 +7,8 @@ from datetime import datetime, timedelta
 
 from sqlmodel import Session, select
 
-from app.db import Empresa, Ingesta, Licitacion, empresa_actual
+from app.conveniencia import PUNTAJE_PARA_BASES
+from app.db import Empresa, Extraccion, Ingesta, Licitacion, empresa_actual
 
 DIAS_ALERTA = 5  # licitaciones que cierran dentro de estos días se marcan como urgentes
 
@@ -20,6 +21,8 @@ class Resumen:
     nuevas: list[Licitacion] = field(default_factory=list)  # aparecieron en las últimas 24 horas
     cierran_pronto: list[Licitacion] = field(default_factory=list)
     abiertas: list[Licitacion] = field(default_factory=list)  # todas las que no han cerrado
+    con_bases: set[str] = field(default_factory=set)  # códigos de las que ya tienen las bases leídas
+    por_cargar: list[Licitacion] = field(default_factory=list)  # conviene descargar sus bases (opción B)
 
 
 def dias_para_cierre(licitacion: Licitacion, ahora: datetime) -> int | None:
@@ -41,6 +44,7 @@ def resumen_del_dia(s: Session, ahora: datetime | None = None) -> Resumen:
     abiertas = list(s.exec(select(Licitacion).where(Licitacion.fecha_cierre >= ahora)))
     abiertas.sort(key=_orden)
     limite = ahora + timedelta(days=DIAS_ALERTA)
+    con_bases = set(s.exec(select(Extraccion.licitacion_codigo)))
     return Resumen(
         fecha=ahora,
         empresa=empresa_actual(s),
@@ -48,6 +52,9 @@ def resumen_del_dia(s: Session, ahora: datetime | None = None) -> Resumen:
         nuevas=[l for l in abiertas if l.primera_vez >= ahora - timedelta(hours=24)],
         cierran_pronto=sorted((l for l in abiertas if l.fecha_cierre <= limite), key=lambda l: l.fecha_cierre),
         abiertas=abiertas,
+        con_bases=con_bases,
+        por_cargar=[l for l in abiertas
+                    if l.codigo not in con_bases and (l.puntaje or 0) >= PUNTAJE_PARA_BASES],
     )
 
 
@@ -57,8 +64,10 @@ def resumen_texto(r: Resumen) -> str:
     if r.empresa:
         lineas.append(r.empresa.nombre)
     lineas += ["", f"{len(r.nuevas)} nuevas en las últimas 24 horas · {len(r.abiertas)} abiertas · "
-                   f"{len(r.cierran_pronto)} cierran en {DIAS_ALERTA} días o menos", ""]
-    for titulo, grupo in (("NUEVAS", r.nuevas), ("CIERRAN PRONTO", r.cierran_pronto)):
+                   f"{len(r.cierran_pronto)} cierran en {DIAS_ALERTA} días o menos · "
+                   f"{len(r.por_cargar)} con bases por cargar", ""]
+    for titulo, grupo in (("NUEVAS", r.nuevas), ("CIERRAN PRONTO", r.cierran_pronto),
+                          (f"CONVIENE LEER SUS BASES (puntaje {PUNTAJE_PARA_BASES} o más)", r.por_cargar)):
         if grupo:
             lineas.append(titulo)
             for l in grupo:

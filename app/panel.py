@@ -4,17 +4,19 @@ Las plantillas están en app/templates/: son HTML con huecos {{ ... }} que se ll
 Las rutas de app/main.py devuelven JSON (para programas); las de aquí devuelven páginas (para personas).
 """
 import tempfile
+import threading
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, Request, UploadFile
 from fastapi.responses import PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from app import db, tareas
+from app import db, descargas, mercadopublico, tareas
 from app.bases import hallazgos_vigentes, ultima_extraccion
 from app.db import Licitacion
+from app.conveniencia import PUNTAJE_PARA_BASES
 from app.resumen import DIAS_ALERTA, dias_para_cierre, resumen_del_dia, resumen_texto
 from app.verificacion import ICONO, Nivel
 
@@ -44,17 +46,21 @@ def _pesos(monto: float | None) -> str:
     return "No publicado" if monto is None else f"${monto:,.0f}".replace(",", ".")
 
 
+def _tamano(bytes_: int) -> str:
+    return f"{bytes_ / 1024:.0f} KB" if bytes_ < 1024 * 1024 else f"{bytes_ / 1024 / 1024:.1f} MB".replace(".", ",")
+
+
 plantillas.env.filters["pesos"] = _pesos
+plantillas.env.filters["tamano"] = _tamano
 
 
 @router.get("/", include_in_schema=False)
 def inicio(request: Request):
     with db.sesion() as s:
         r = resumen_del_dia(s)
-        con_bases = {l.codigo for l in r.abiertas if ultima_extraccion(s, l.codigo)}
     return plantillas.TemplateResponse(request, "inicio.html", {
-        "r": r, "con_bases": con_bases, "dias": lambda l: dias_para_cierre(l, r.fecha),
-        "dias_alerta": DIAS_ALERTA,
+        "r": r, "dias": lambda l: dias_para_cierre(l, r.fecha), "dias_alerta": DIAS_ALERTA,
+        "puntaje_para_bases": PUNTAJE_PARA_BASES,
     })
 
 
@@ -84,11 +90,60 @@ def ficha(request: Request, codigo: str):
     for h in hallazgos:
         (ocultos if h.nivel == Nivel.sin_respaldo.value else grupos[h.tipo]).append(h)
     conteo = {n: sum(h.nivel == n for h in hallazgos) for n in NIVELES}
+
+    # Opción A: si se abrió la ficha desde el panel, buscar las bases en la carpeta de descargas
+    esperando = None if tareas.en_curso(codigo) else descargas.esperando_desde(codigo)
+    encontrados = descargas.candidatos(codigo, esperando) if esperando else []
+    elegido = descargas.eleccion_automatica(encontrados)
+    if elegido:  # sin dudas: se lee solo
+        _leer_en_segundo_plano(codigo, elegido.ruta, f"Encontré «{elegido.nombre}» en Descargas")
+        esperando, encontrados = None, []
+
     return plantillas.TemplateResponse(request, "licitacion.html", {
         "l": licitacion, "extraccion": extraccion, "grupos": grupos, "ocultos": ocultos, "conteo": conteo,
         "tipos": TIPOS, "niveles": NIVELES, "estado": tareas.estado(codigo), "en_curso": tareas.en_curso(codigo),
         "dias": dias_para_cierre(licitacion, datetime.now()), "dias_alerta": DIAS_ALERTA,
+        "esperando": esperando, "encontrados": encontrados, "carpeta_descargas": descargas.carpeta(),
+        "puntaje_para_bases": PUNTAJE_PARA_BASES,
     })
+
+
+def _leer_en_segundo_plano(codigo: str, ruta: Path, descripcion: str) -> None:
+    """Como BackgroundTasks solo existe en un POST, aquí se usa un hilo (el panel es de una sola persona)."""
+    descargas.dejar_de_esperar(codigo)
+    tareas.iniciar(codigo, descripcion)
+    threading.Thread(target=tareas.leer_bases, args=(codigo, str(ruta)), daemon=True).start()
+
+
+@router.get("/licitacion/{codigo}/ficha-mp", include_in_schema=False)
+def abrir_ficha_mp(codigo: str):
+    """Abre la ficha en Mercado Público y empieza a esperar las bases en la carpeta de descargas (opción A)."""
+    with db.sesion() as s:
+        licitacion = s.get(Licitacion, codigo)
+    if licitacion is None:
+        raise HTTPException(status_code=404, detail="Licitación no encontrada")
+    descargas.esperar(codigo)
+    return RedirectResponse(licitacion.url_ficha or mercadopublico.url_ficha(codigo), status_code=303)
+
+
+@router.post("/licitacion/{codigo}/bases-descargadas", include_in_schema=False)
+def leer_bases_descargadas(codigo: str, nombre: str = Form(...)):
+    """La persona eligió cuál de los PDF descargados son las bases."""
+    if tareas.en_curso(codigo):
+        raise HTTPException(status_code=409, detail="Ya se están procesando las bases de esta licitación")
+    desde = descargas.esperando_desde(codigo)
+    # Solo se aceptan archivos de la lista de candidatos, nunca una ruta enviada por el formulario
+    elegido = next((c for c in descargas.candidatos(codigo, desde) if c.nombre == nombre), None) if desde else None
+    if elegido is None:
+        raise HTTPException(status_code=404, detail="Ese archivo ya no está en la carpeta de descargas")
+    _leer_en_segundo_plano(codigo, elegido.ruta, f"Leyendo «{elegido.nombre}»")
+    return RedirectResponse(f"/licitacion/{codigo}", status_code=303)
+
+
+@router.post("/licitacion/{codigo}/dejar-de-buscar", include_in_schema=False)
+def dejar_de_buscar(codigo: str):
+    descargas.dejar_de_esperar(codigo)
+    return RedirectResponse(f"/licitacion/{codigo}", status_code=303)
 
 
 @router.post("/licitacion/{codigo}/bases", include_in_schema=False)
@@ -103,6 +158,7 @@ def subir_bases(codigo: str, archivo: UploadFile, segundo_plano: BackgroundTasks
         raise HTTPException(status_code=415, detail="El archivo no es un PDF")
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temporal:
         temporal.write(contenido)
+    descargas.dejar_de_esperar(codigo)
     tareas.iniciar(codigo, "En cola para leer las bases")
     segundo_plano.add_task(tareas.leer_bases, codigo, temporal.name)
     return RedirectResponse(f"/licitacion/{codigo}", status_code=303)

@@ -10,8 +10,8 @@ from threading import Lock
 
 from app import db
 from app.bases import hallazgos_vigentes, procesar_bases
-from app.conveniencia import evaluar
-from app.db import Licitacion, empresa_actual
+from app import conveniencia
+from app.db import Licitacion
 
 
 @dataclass
@@ -49,17 +49,7 @@ def iniciar(codigo: str, descripcion: str) -> None:
 def evaluar_y_guardar(codigo: str) -> None:
     """Calcula el puntaje de conveniencia con los hallazgos vigentes y lo guarda en la licitación."""
     with db.sesion() as s:
-        licitacion = s.get(Licitacion, codigo)
-        hallazgos = hallazgos_vigentes(s, codigo)
-        resultado = evaluar(licitacion, empresa_actual(s), hallazgos)
-        licitacion.puntaje = resultado.puntaje
-        licitacion.conveniencia = {
-            **resultado.model_dump(),
-            "con_bases": bool(hallazgos),
-            "fecha": datetime.now().strftime("%d/%m/%Y %H:%M"),
-        }
-        s.add(licitacion)
-        s.commit()
+        conveniencia.evaluar_y_guardar(s, s.get(Licitacion, codigo), hallazgos_vigentes(s, codigo))
 
 
 def leer_bases(codigo: str, ruta_pdf: str) -> None:

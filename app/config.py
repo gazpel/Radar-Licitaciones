@@ -9,7 +9,9 @@ class Settings(BaseSettings):
     mp_pausa: float = 1.0
     db_url: str = "sqlite:///data/radar.db"
     ollama_url: str = "http://localhost:11434"
-    llm_model: str = "mistral"
+    # Modelo por defecto: IBM Granite 4.2 8B (el mejor en el puntaje de conveniencia, comparación del 14/11/2026).
+    # Alternativas probadas: "mistral" (citas más precisas) y "gemma4:e2b" (más rápido); con ellas LLM_THINK va vacío.
+    llm_model: str = "granite4.2:8b"
     llm_num_ctx: int = 8192
     # Tope de tokens de la respuesta. Entrada + respuesta deben caber en llm_num_ctx:
     # si no, Ollama descarta texto y puede no terminar nunca.
@@ -21,8 +23,11 @@ class Settings(BaseSettings):
     # perder ninguna de las 6 de colchones, que las palabras clave ya encuentran todas).
     busqueda_semantica: bool = False
     similitud_minima: float = 0.80
-    # Modelos con razonamiento (Granite 4.2): false lo desactiva. Vacío = no se envía.
-    llm_think: bool | None = None
+    # Modelos con razonamiento (Granite 4.2): false lo desactiva y reduce el tiempo a la mitad.
+    # Vacío = no se envía (para modelos sin razonamiento, como mistral o gemma4:e2b).
+    llm_think: bool | None = False
+    # Carpeta donde el navegador guarda las descargas (opción A de la carga de bases). Vacío = Descargas del usuario.
+    carpeta_descargas: str = ""
 
 
 settings = Settings()

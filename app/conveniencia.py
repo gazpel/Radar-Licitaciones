@@ -7,9 +7,14 @@ le entregan hechos, porque los modelos se equivocan con fechas y aritmética.
 from datetime import datetime
 
 from pydantic import BaseModel, Field
+from sqlmodel import Session, select
 
 from app import llm
-from app.db import Empresa, HallazgoGuardado, Licitacion
+from app.db import Empresa, Extraccion, HallazgoGuardado, Licitacion, empresa_actual
+
+# Opción B (provisoria, BUSCAR UNA MEJOR SOLUCIÓN): como las bases hay que descargarlas a mano, solo se
+# piden para las licitaciones que ya con la ficha obtienen este puntaje o más.
+PUNTAJE_PARA_BASES = 3
 
 
 class EvaluacionConveniencia(BaseModel):
@@ -74,3 +79,43 @@ def evaluar(licitacion: Licitacion, empresa: Empresa, hallazgos: list[HallazgoGu
     datos = llm.generar_json(SISTEMA, texto, EvaluacionConveniencia.model_json_schema(),
                              modelo=modelo, think=think)
     return EvaluacionConveniencia.model_validate(datos)
+
+
+def evaluar_y_guardar(s: Session, licitacion: Licitacion, hallazgos: list[HallazgoGuardado],
+                      ahora: datetime | None = None, evaluador=None) -> EvaluacionConveniencia:
+    """Calcula el puntaje y lo guarda en la licitación, con la fecha y si se usaron las bases."""
+    ahora = ahora or datetime.now()
+    resultado = (evaluador or evaluar)(licitacion, empresa_actual(s), hallazgos, ahora)
+    licitacion.puntaje = resultado.puntaje
+    licitacion.conveniencia = {
+        **resultado.model_dump(),
+        "con_bases": bool(hallazgos),
+        "fecha": ahora.strftime("%d/%m/%Y %H:%M"),
+    }
+    s.add(licitacion)
+    s.commit()
+    return resultado
+
+
+def puntuar_sin_puntaje(s: Session, ahora: datetime | None = None, al_avanzar=None,
+                        evaluador=None) -> tuple[list[Licitacion], list[str]]:
+    """Opción B: da un primer puntaje, solo con la ficha, a las licitaciones abiertas que no tienen.
+
+    Así se sabe a cuáles vale la pena descargarles las bases (puntaje >= PUNTAJE_PARA_BASES).
+    Devuelve las puntuadas y los errores (uno por licitación, sin detener a las demás).
+    """
+    ahora = ahora or datetime.now()
+    con_bases = set(s.exec(select(Extraccion.licitacion_codigo)))
+    pendientes = [l for l in s.exec(select(Licitacion).where(Licitacion.fecha_cierre >= ahora,
+                                                             Licitacion.puntaje.is_(None)))
+                  if l.codigo not in con_bases]
+    puntuadas, errores = [], []
+    for i, licitacion in enumerate(pendientes, start=1):
+        if al_avanzar:
+            al_avanzar(i, len(pendientes), licitacion.codigo)
+        try:
+            evaluar_y_guardar(s, licitacion, [], ahora, evaluador)
+            puntuadas.append(licitacion)
+        except Exception as error:  # p. ej. Ollama apagado: se informa y se sigue
+            errores.append(f"{licitacion.codigo}: {error}")
+    return puntuadas, errores
