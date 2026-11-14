@@ -4,3 +4,6 @@ __pycache__/
 *.pyc
 data/bases/*.pdf
 data/resultados/
+data/radar.db
+data/logs/
+.pytest_cache/

@@ -11,8 +11,9 @@ from pathlib import Path
 
 from app import mercadopublico
 from app.extraccion import extraer
-from app.main import PALABRAS_RUBRO
 from app.pdf import leer_paginas
+
+PALABRAS_RUBRO = ["colchon", "colchones", "colchoneta"]
 
 
 def buscar():

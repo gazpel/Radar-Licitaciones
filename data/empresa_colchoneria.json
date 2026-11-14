@@ -1,0 +1,21 @@
+{
+  "_nota": "Perfil SINTÉTICO (empresa ficticia) para el caso de estudio. Los códigos UNSPSC salen de licitaciones reales de colchones (API de Mercado Público, 14/11/2026).",
+  "nombre": "Colchonería Los Aromos SpA (ficticia)",
+  "rubro": "Fabricación y venta de colchones, colchonetas y almohadas",
+  "regiones": [
+    "Metropolitana",
+    "Valparaíso",
+    "O'Higgins",
+    "Maule",
+    "Ñuble",
+    "Biobío",
+    "Araucanía",
+    "Los Ríos",
+    "Los Lagos"
+  ],
+  "palabras_clave": ["colchon", "colchones", "colchoneta", "somier", "almohada"],
+  "palabras_excluidas": ["lavado", "lavanderia", "arriendo"],
+  "unspsc": ["49121502", "42191810", "52121505"],
+  "monto_min": 500000,
+  "monto_max": 60000000
+}

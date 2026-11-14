@@ -1,0 +1,41 @@
+<mxfile host="drawio" type="device">
+  <diagram name="Casos de uso" id="Casosde">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1000" pageHeight="800" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="c2" value="Radar de Licitaciones" style="shape=rect;html=1;verticalAlign=top;fontStyle=1;fontSize=14;fillColor=none;" vertex="1" parent="1"><mxGeometry x="200" y="20" width="640" height="700" as="geometry" /></mxCell>
+        <mxCell id="c3" value="Dueño de la PyME" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;whiteSpace=wrap;" vertex="1" parent="1"><mxGeometry x="50" y="330" width="40" height="80" as="geometry" /></mxCell>
+        <mxCell id="c4" value="Programador de tareas" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;whiteSpace=wrap;" vertex="1" parent="1"><mxGeometry x="920" y="20" width="40" height="80" as="geometry" /></mxCell>
+        <mxCell id="c5" value="API Mercado Público" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;whiteSpace=wrap;" vertex="1" parent="1"><mxGeometry x="920" y="150" width="40" height="80" as="geometry" /></mxCell>
+        <mxCell id="c6" value="LLM local (Ollama + LangChain)" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;whiteSpace=wrap;" vertex="1" parent="1"><mxGeometry x="920" y="470" width="40" height="80" as="geometry" /></mxCell>
+        <mxCell id="c7" value="Configurar el perfil de la empresa (HU-01)" style="ellipse;whiteSpace=wrap;html=1;fontSize=12;" vertex="1" parent="1"><mxGeometry x="225" y="60" width="310" height="58" as="geometry" /></mxCell>
+        <mxCell id="c8" value="" style="endArrow=none;html=1;" edge="1" parent="1" source="c3" target="c7"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="c9" value="Ver las licitaciones activas del rubro (HU-02)" style="ellipse;whiteSpace=wrap;html=1;fontSize=12;" vertex="1" parent="1"><mxGeometry x="225" y="140" width="310" height="58" as="geometry" /></mxCell>
+        <mxCell id="c10" value="" style="endArrow=none;html=1;" edge="1" parent="1" source="c3" target="c9"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="c11" value="Saber cuáles conviene postular y por qué (HU-05)" style="ellipse;whiteSpace=wrap;html=1;fontSize=12;" vertex="1" parent="1"><mxGeometry x="225" y="220" width="310" height="58" as="geometry" /></mxCell>
+        <mxCell id="c12" value="" style="endArrow=none;html=1;" edge="1" parent="1" source="c3" target="c11"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="c13" value="Conocer requisitos, documentos, garantías, plazos y criterios con su página (HU-03)" style="ellipse;whiteSpace=wrap;html=1;fontSize=12;" vertex="1" parent="1"><mxGeometry x="225" y="300" width="310" height="58" as="geometry" /></mxCell>
+        <mxCell id="c14" value="" style="endArrow=none;html=1;" edge="1" parent="1" source="c3" target="c13"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="c15" value="Ver qué datos están verificados en las bases (HU-04)" style="ellipse;whiteSpace=wrap;html=1;fontSize=12;" vertex="1" parent="1"><mxGeometry x="225" y="380" width="310" height="58" as="geometry" /></mxCell>
+        <mxCell id="c16" value="" style="endArrow=none;html=1;" edge="1" parent="1" source="c3" target="c15"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="c17" value="Recibir el resumen diario (HU-06)" style="ellipse;whiteSpace=wrap;html=1;fontSize=12;" vertex="1" parent="1"><mxGeometry x="225" y="460" width="310" height="58" as="geometry" /></mxCell>
+        <mxCell id="c18" value="" style="endArrow=none;html=1;" edge="1" parent="1" source="c3" target="c17"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="c19" value="Preguntar sobre las bases (HU-08)" style="ellipse;whiteSpace=wrap;html=1;fontSize=12;" vertex="1" parent="1"><mxGeometry x="225" y="540" width="310" height="58" as="geometry" /></mxCell>
+        <mxCell id="c20" value="" style="endArrow=none;html=1;" edge="1" parent="1" source="c3" target="c19"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="c21" value="Recibir aviso antes del cierre (HU-09)" style="ellipse;whiteSpace=wrap;html=1;fontSize=12;" vertex="1" parent="1"><mxGeometry x="225" y="620" width="310" height="58" as="geometry" /></mxCell>
+        <mxCell id="c22" value="" style="endArrow=none;html=1;" edge="1" parent="1" source="c3" target="c21"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="c23" value="Ejecutar ingesta diaria y filtrar por perfil" style="ellipse;whiteSpace=wrap;html=1;fontSize=12;" vertex="1" parent="1"><mxGeometry x="570" y="60" width="240" height="58" as="geometry" /></mxCell>
+        <mxCell id="c24" value="Cargar las bases de una licitación" style="ellipse;whiteSpace=wrap;html=1;fontSize=12;dashed=1;" vertex="1" parent="1"><mxGeometry x="570" y="240" width="240" height="58" as="geometry" /></mxCell>
+        <mxCell id="c25" value="" style="endArrow=none;html=1;" edge="1" parent="1" source="c4" target="c23"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="c26" value="" style="endArrow=none;html=1;" edge="1" parent="1" source="c23" target="c5"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="c27" value="«include»" style="endArrow=open;dashed=1;html=1;endSize=8;fontSize=10;" edge="1" parent="1" source="c13" target="c24"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="c28" value="«extend»" style="endArrow=open;dashed=1;html=1;endSize=8;fontSize=10;" edge="1" parent="1" source="c15" target="c13"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="c29" value="" style="endArrow=none;html=1;" edge="1" parent="1" source="c13" target="c6"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="c30" value="" style="endArrow=none;html=1;" edge="1" parent="1" source="c11" target="c6"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="c31" value="" style="endArrow=none;html=1;" edge="1" parent="1" source="c19" target="c6"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="c32" value="HU-07 (panel web) es el medio por el que la PyME accede a sus casos de uso. Borde punteado: carga asistida de las bases, porque la ficha web las protege con reCAPTCHA." style="text;html=1;whiteSpace=wrap;fontSize=10;align=left;" vertex="1" parent="1"><mxGeometry x="200" y="730" width="640" height="40" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

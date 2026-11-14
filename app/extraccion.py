@@ -4,8 +4,6 @@ Flujo: las páginas se procesan por bloques (el modelo local tiene contexto limi
 el LLM devuelve hallazgos con página y cita textual, y luego se comprueba en código
 que cada cita exista de verdad en el PDF. Lo que no se encuentra se marca como no verificado.
 """
-import re
-import unicodedata
 from enum import Enum
 
 from pydantic import BaseModel
@@ -13,6 +11,7 @@ from pydantic import BaseModel
 from app import llm
 from app.config import settings
 from app.pdf import agrupar_paginas
+from app.texto import normalizar as _normalizar
 
 
 class Tipo(str, Enum):
@@ -47,10 +46,6 @@ Reglas:
 - Nunca inventes datos. Si un fragmento no contiene nada relevante, devuelve una lista vacía.
 - Escribe la descripción en español, breve y clara para el dueño de una PyME."""
 
-
-def _normalizar(texto: str) -> str:
-    texto = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode().lower()
-    return re.sub(r"[^a-z0-9]+", " ", texto).strip()
 
 
 def _verificar(hallazgo: Hallazgo, paginas: list[str], bloque: list[int]) -> Hallazgo:
