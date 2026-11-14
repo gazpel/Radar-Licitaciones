@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block titulo %}Perfil · Radar de Licitaciones{% endblock %}
+{% block contenido %}
+<h1>Perfil de la empresa</h1>
+{% if empresa %}
+<section class="datos">
+  <div><span>Nombre</span><strong>{{ empresa.nombre }}</strong></div>
+  <div><span>Rubro</span><strong>{{ empresa.rubro }}</strong></div>
+  <div><span>Montos</span><strong>{{ empresa.monto_min | pesos }} a {{ empresa.monto_max | pesos }}</strong></div>
+</section>
+<h2>Regiones que atiende</h2>
+<p>{{ empresa.regiones | join(" · ") or "Todo Chile" }}</p>
+<h2>Palabras clave</h2>
+<p>{{ empresa.palabras_clave | join(" · ") }}</p>
+<h2>Palabras excluidas</h2>
+<p>{{ empresa.palabras_excluidas | join(" · ") or "Ninguna" }}</p>
+<h2>Códigos de producto (UNSPSC)</h2>
+<p>{{ empresa.unspsc | join(" · ") }}</p>
+<p class="sutil">Para cambiar el perfil, edita <code>data/empresa_colchoneria.json</code> y ejecuta
+  <code>python -m scripts.ingesta --perfil</code>.</p>
+{% else %}
+<p class="aviso">No hay perfil cargado. Ejecuta <code>python -m scripts.ingesta</code>.</p>
+{% endif %}
+{% endblock %}

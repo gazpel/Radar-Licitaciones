@@ -19,6 +19,10 @@ garantías, plazos y criterios de evaluación, citando la página de donde sale 
 | Ingesta con filtro por perfil (Sprint 1, 14/11/2026) | 5.266 activas → 6 candidatas por nombre → 5 relevantes; 2.ª ejecución sin duplicados |
 | Extracción vía LangChain (`ChatOllama`) con Mistral 7B | 11 hallazgos, 11/11 citas verificadas |
 | Descarga automática de bases desde la ficha web (spike) | No viable: la lista de adjuntos está protegida con reCAPTCHA → carga asistida |
+| Extracción de 3 bases reales con verificación por niveles (Sprint 2) | Mistral 7B 97% de citas encontradas · Gemma 4 E2B 93% · Granite 4.2 8B 83% |
+| Instrucción maliciosa escondida en un PDF | Ignorada por los tres modelos |
+| Embeddings para filtrar por título (Sprint 3) | No mejoran a las palabras clave: desactivados por defecto |
+| Panel web y resumen diario (Sprint 4) | http://localhost:8000 |
 
 Las bases usadas (`data/bases/prueba_sintetica.pdf`) son **ficticias**: un PDF de 4 páginas creado para la
 prueba, con una instrucción maliciosa escondida para probar los guardrails. Los resultados están en
@@ -44,10 +48,12 @@ En `.env`, `LLM_MODEL` elige el modelo y `LLM_THINK=false` desactiva el modo raz
 ## Uso
 
 ```bash
+scripts\panel.bat                                                 # panel web en http://localhost:8000
 python -m scripts.ingesta                                        # trae, filtra y guarda las licitaciones del perfil
 python -m scripts.ingesta --perfil                               # recarga el perfil desde data/empresa_colchoneria.json
 uvicorn app.main:app --reload                                    # API web en http://localhost:8000/docs
-python -m scripts.demo extraer data/bases/prueba_sintetica.pdf   # extracción de unas bases
+python -m scripts.extraer CODIGO bases.pdf                       # carga asistida: lee, verifica y guarda unas bases
+python -m scripts.comparar_modelos                               # compara modelos sobre las mismas bases
 pytest                                                           # pruebas automáticas
 ```
 
@@ -64,7 +70,14 @@ con el Programador de tareas de Windows.
 - `app/pdf.py` — lectura de PDF por página
 - `app/llm.py` — acceso al LLM con LangChain (`ChatOllama`, local)
 - `app/extraccion.py` — extracción estructurada con verificación de citas
-- `app/main.py` — API web (FastAPI)
+- `app/main.py` — API web JSON (FastAPI) y arranque del panel
+- `app/panel.py`, `app/templates/`, `app/static/` — panel web (Jinja2)
+- `app/verificacion.py` — verificación por niveles (✅ textual, 🟡 aproximada, 🟠 interpretado, 🔴 sin respaldo)
+- `app/bases.py` — carga asistida de bases: guarda, extrae y verifica
+- `app/conveniencia.py` — puntaje de conveniencia de 1 a 5 con razones
+- `app/busqueda.py` — embeddings y similitud coseno
+- `app/resumen.py` — resumen del día
+- `app/tareas.py` — tareas largas en segundo plano
 - `scripts/demo.py` — mini-demo por consola (Evaluación 1)
 - `scripts/ingesta.py` — ingesta por consola
 - `data/empresa_colchoneria.json` — perfil **sintético** de la empresa del caso de estudio

@@ -1,4 +1,7 @@
-"""API web del Radar de Licitaciones. Ejecutar con: uvicorn app.main:app --reload
+"""API web y panel del Radar de Licitaciones. Ejecutar con: uvicorn app.main:app --reload
+
+- Panel para personas: http://localhost:8000/ (rutas en app/panel.py)
+- API JSON para programas: http://localhost:8000/docs (rutas de este archivo)
 
 Los datos salen de la base SQLite que llena la ingesta (python -m scripts.ingesta),
 no de la API de Mercado Público: así la página responde rápido y no gasta consultas.
@@ -6,11 +9,13 @@ no de la API de Mercado Público: así la página responde rápido y no gasta co
 import tempfile
 from contextlib import asynccontextmanager
 from datetime import datetime
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi.staticfiles import StaticFiles
 from sqlmodel import select
 
-from app import db, mercadopublico
+from app import db, mercadopublico, panel
 from app.bases import PDFSinTexto, hallazgos_vigentes, procesar_bases, ultima_extraccion
 from app.db import Empresa, Extraccion, HallazgoGuardado, Ingesta, Licitacion
 
@@ -22,6 +27,8 @@ async def al_iniciar(app: FastAPI):
 
 
 app = FastAPI(title="Radar de Licitaciones", lifespan=al_iniciar)
+app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
+app.include_router(panel.router)
 
 
 @app.get("/empresa")

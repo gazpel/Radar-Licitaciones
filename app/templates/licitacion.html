@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block meta %}{% if en_curso %}<meta http-equiv="refresh" content="5">{% endif %}{% endblock %}
+{% block titulo %}{{ l.codigo }} · Radar de Licitaciones{% endblock %}
+{% block contenido %}
+<p><a href="/">← Volver al resumen</a></p>
+<h1>{{ l.nombre }}</h1>
+<p class="sutil">{{ l.codigo }} · {{ l.organismo }} · {{ l.region }}{% if l.comuna %} ({{ l.comuna }}){% endif %}</p>
+
+<section class="datos">
+  <div><span>Cierre</span><strong class="{% if dias is not none and dias <= dias_alerta %}rojo{% endif %}">
+    {{ l.fecha_cierre.strftime("%d/%m/%Y %H:%M") if l.fecha_cierre else "Sin fecha" }}</strong>
+    {% if dias is not none %}<small>{% if dias < 0 %}cerrada{% elif dias == 0 %}cierra hoy{% else %}quedan {{ dias }} días{% endif %}</small>{% endif %}</div>
+  <div><span>Monto estimado</span><strong>{{ l.monto | pesos }}</strong></div>
+  <div><span>Productos</span><strong>{{ l.productos | join(", ") or "—" }}</strong></div>
+  <div><span>Estado</span><strong>{{ l.estado }}</strong></div>
+</section>
+
+<details class="motivos">
+  <summary>¿Por qué aparece en el radar?</summary>
+  <ul>{% for m in l.motivos %}<li>{{ m }}</li>{% endfor %}</ul>
+</details>
+
+{% if estado %}
+<p class="aviso {% if estado.error %}error{% elif not en_curso %}listo{% endif %}">
+  {% if en_curso %}⏳ {{ estado.descripcion }}… (esta página se actualiza sola)
+  {% elif estado.error %}No se pudo completar: {{ estado.error }}
+  {% else %}✔ Proceso terminado.{% endif %}
+</p>
+{% endif %}
+
+<h2>Conveniencia</h2>
+{% if l.conveniencia %}
+<div class="conveniencia">
+  <div class="puntaje grande p{{ l.puntaje }}">{{ l.puntaje }}<small>/5</small></div>
+  <div>
+    <p class="resumen">{{ l.conveniencia.resumen }}</p>
+    <div class="columnas">
+      <div><h3>A favor</h3><ul>{% for x in l.conveniencia.a_favor %}<li>{{ x }}</li>{% endfor %}</ul></div>
+      <div><h3>En contra</h3><ul>{% for x in l.conveniencia.en_contra %}<li>{{ x }}</li>{% endfor %}</ul></div>
+    </div>
+    <p class="sutil">Calculado el {{ l.conveniencia.fecha }}
+      {% if l.conveniencia.con_bases %}con los datos verificados de las bases{% else %}solo con la ficha (sin leer las bases){% endif %}.</p>
+  </div>
+</div>
+{% else %}
+<p class="sutil">Aún no se ha evaluado.</p>
+{% endif %}
+<form method="post" action="/licitacion/{{ l.codigo }}/conveniencia">
+  <button {% if en_curso %}disabled{% endif %}>{% if l.conveniencia %}Recalcular{% else %}Calcular{% endif %} conveniencia</button>
+</form>
+
+<h2>Requisitos y datos de las bases</h2>
+{% if extraccion %}
+<p class="sutil">Leídas el {{ extraccion.fecha.strftime("%d/%m/%Y %H:%M") }} con {{ extraccion.modelo }}
+  ({{ extraccion.paginas }} páginas, {{ "%.0f" | format(extraccion.segundos) }} s).</p>
+<ul class="leyenda">
+  {% for clave, (icono, texto) in niveles.items() %}
+  <li>{{ icono }} {{ texto }} <strong>({{ conteo[clave] }})</strong></li>
+  {% endfor %}
+</ul>
+
+{% for tipo, nombre in tipos.items() if grupos[tipo] %}
+<h3>{{ nombre }}</h3>
+<ul class="hallazgos">
+  {% for h in grupos[tipo] %}
+  <li class="{{ h.nivel }}">
+    <span class="icono" title="{{ niveles[h.nivel][1] }}">{{ niveles[h.nivel][0] }}</span>
+    <div>
+      {{ h.descripcion }} <span class="pagina">pág. {{ h.pagina }}</span>
+      {% if not h.confiable %}<span class="etiqueta urgente">Revisar en las bases</span>{% endif %}
+      <blockquote>«{{ h.texto_real or h.cita }}»</blockquote>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% endfor %}
+
+{% if ocultos %}
+<details class="motivos">
+  <summary>{{ ocultos | length }} datos sin respaldo en el PDF (ocultos)</summary>
+  <p class="sutil">El modelo los mencionó, pero su cita no aparece en las bases. Pueden ser errores del modelo.</p>
+  <ul>{% for h in ocultos %}<li>{{ h.descripcion }} (dijo pág. {{ h.pagina }}): «{{ h.cita }}»</li>{% endfor %}</ul>
+</details>
+{% endif %}
+{% else %}
+<p class="sutil">Todavía no se han leído las bases de esta licitación.</p>
+{% endif %}
+
+<div class="carga">
+  <h3>{% if extraccion %}Volver a cargar las bases{% else %}Cargar las bases{% endif %}</h3>
+  <ol>
+    <li>Abre la <a href="{{ l.url_ficha }}" target="_blank" rel="noopener">ficha en Mercado Público</a> y descarga el PDF de las bases
+      (la descarga requiere una persona: el sitio la protege con un captcha).</li>
+    <li>Súbelo aquí. La lectura toma unos minutos con el modelo local.</li>
+  </ol>
+  <form method="post" action="/licitacion/{{ l.codigo }}/bases" enctype="multipart/form-data">
+    <input type="file" name="archivo" accept="application/pdf" required>
+    <button {% if en_curso %}disabled{% endif %}>Leer bases</button>
+  </form>
+</div>
+{% endblock %}

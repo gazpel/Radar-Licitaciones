@@ -8,3 +8,5 @@ python-multipart
 sqlmodel
 langchain-ollama
 pytest
+jinja2
+numpy

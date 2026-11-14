@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {% block meta %}{% endblock %}
+  <title>{% block titulo %}Radar de Licitaciones{% endblock %}</title>
+  <link rel="stylesheet" href="/static/estilo.css">
+</head>
+<body>
+  <header class="barra">
+    <a class="marca" href="/">Radar de Licitaciones</a>
+    <nav>
+      <a href="/">Inicio</a>
+      <a href="/perfil">Perfil</a>
+      <a href="/docs">API</a>
+    </nav>
+  </header>
+  <main>
+    {% block contenido %}{% endblock %}
+  </main>
+  <footer>
+    Datos: API de Mercado Público. Los requisitos los extrae un modelo de lenguaje local y se verifican contra el PDF;
+    revisa siempre las bases antes de postular.
+  </footer>
+</body>
+</html>
