@@ -7,7 +7,7 @@ Uso (desde la carpeta radar-licitaciones, con el entorno virtual activo):
 import sys
 
 from app import db
-from app.ingesta import cargar_empresa, ejecutar
+from app.ingesta import cargar_empresa, ejecutar, similitud_configurada
 
 PERFIL = "data/empresa_colchoneria.json"
 
@@ -24,7 +24,7 @@ def main():
             print(f"Perfil cargado: {empresa.nombre}\n")
 
         print("Consultando licitaciones activas en Mercado Público...")
-        r = ejecutar(s, al_avanzar=mostrar_avance)
+        r = ejecutar(s, al_avanzar=mostrar_avance, similitud=similitud_configurada())
         g = r.ingesta
 
         print(f"\nIngesta #{g.id} lista en {(g.fin - g.inicio).total_seconds():.0f} s")

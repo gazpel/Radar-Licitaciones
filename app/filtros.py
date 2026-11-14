@@ -2,6 +2,7 @@
 
 Funciona como un embudo de dos etapas, para no gastar consultas a la API:
 1. Con el listado de activas (solo trae código, nombre y cierre): ¿el nombre tiene alguna palabra clave?
+   1b. Si no la tiene, ¿el nombre se parece en significado al rubro? (embeddings, ver app/ingesta.py)
 2. Con el detalle (una consulta por licitación): ¿el producto es del rubro, la región y el monto calzan?
 
 Cada regla deja un motivo escrito, así en el panel se puede mostrar por qué pasó o se descartó.
@@ -17,6 +18,7 @@ class Evaluacion:
     pasa: bool
     motivos: list[str] = field(default_factory=list)  # por qué sirve
     rechazos: list[str] = field(default_factory=list)  # por qué no sirve
+    excluida: bool = False  # tiene una palabra excluida: no se rescata por similitud
 
 
 def _palabras_en(texto: str, palabras: list[str]) -> list[str]:
@@ -29,7 +31,7 @@ def etapa_nombre(licitacion: dict, empresa: Empresa) -> Evaluacion:
     nombre = licitacion.get("Nombre", "")
     excluidas = _palabras_en(nombre, empresa.palabras_excluidas)
     if excluidas:
-        return Evaluacion(False, rechazos=[f"nombre con palabra excluida: {', '.join(excluidas)}"])
+        return Evaluacion(False, rechazos=[f"nombre con palabra excluida: {', '.join(excluidas)}"], excluida=True)
     encontradas = _palabras_en(nombre, empresa.palabras_clave)
     if encontradas:
         return Evaluacion(True, motivos=[f"nombre contiene: {', '.join(encontradas)}"])

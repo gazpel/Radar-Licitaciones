@@ -10,9 +10,10 @@ from pathlib import Path
 
 from sqlmodel import Session
 
-from app import mercadopublico
+from app import busqueda, mercadopublico
+from app.config import settings
 from app.db import Empresa, Ingesta, Licitacion, empresa_actual
-from app.filtros import etapa_detalle, etapa_nombre
+from app.filtros import Evaluacion, etapa_detalle, etapa_nombre
 
 
 @dataclass
@@ -78,8 +79,28 @@ def datos_licitacion(detalle: dict, motivos: list[str]) -> dict:
     }
 
 
-def ejecutar(s: Session, api=mercadopublico, al_avanzar=None) -> ResultadoIngesta:
-    """Corre el embudo completo. `api` se puede reemplazar por una falsa en las pruebas."""
+def _similitudes(similitud, perfil: str, textos: list[str], resultado: ResultadoIngesta) -> list[float] | None:
+    """Calcula similitudes; si el servicio de embeddings falla, la ingesta sigue sin ellas."""
+    if similitud is None or not textos:
+        return None
+    try:
+        return similitud(perfil, textos)
+    except Exception as error:  # Ollama apagado, modelo no descargado, etc.
+        resultado.errores.append(f"Búsqueda semántica no disponible ({type(error).__name__}); se usaron solo palabras clave")
+        return None
+
+
+def similitud_configurada():
+    """La búsqueda semántica solo se usa si BUSQUEDA_SEMANTICA=true en el .env."""
+    return busqueda.similitud_con_perfil if settings.busqueda_semantica else None
+
+
+def ejecutar(s: Session, api=mercadopublico, al_avanzar=None, similitud=None) -> ResultadoIngesta:
+    """Corre el embudo completo.
+
+    `api` se puede reemplazar por una falsa en las pruebas. `similitud` es la función de búsqueda
+    semántica (None = solo palabras clave; ver similitud_configurada()).
+    """
     empresa = empresa_actual(s)
     if empresa is None:
         raise RuntimeError("No hay perfil de empresa: ejecuta primero la carga del perfil")
@@ -92,11 +113,20 @@ def ejecutar(s: Session, api=mercadopublico, al_avanzar=None) -> ResultadoIngest
 
     # Etapa 1: una sola consulta con todas las activas, filtro por nombre
     activas = api.licitaciones_activas()
-    candidatas = []
+    candidatas, sin_palabras = [], []
     for lic in activas:
         ev = etapa_nombre(lic, empresa)
         if ev.pasa:
             candidatas.append((lic, ev))
+        elif not ev.excluida:
+            sin_palabras.append(lic)
+
+    # Etapa 1b: rescatar por significado los nombres sin palabras clave
+    perfil = busqueda.texto_perfil(empresa)
+    sims = _similitudes(similitud, perfil, [l.get("Nombre", "") for l in sin_palabras], resultado)
+    for lic, sim in zip(sin_palabras, sims or []):
+        if sim >= settings.similitud_minima:
+            candidatas.append((lic, Evaluacion(True, motivos=[f"nombre parecido al rubro (similitud {sim:.2f})"])))
     ingesta.activas, ingesta.candidatas = len(activas), len(candidatas)
 
     # Etapa 2: una consulta de detalle por candidata
@@ -130,6 +160,13 @@ def ejecutar(s: Session, api=mercadopublico, al_avanzar=None) -> ResultadoIngest
             existente.ultima_vez = datetime.now()
             s.add(existente)
             resultado.actualizadas.append(existente)
+
+    # Similitud de cada relevante con el perfil (sirve para ordenar el panel)
+    relevantes = resultado.nuevas + resultado.actualizadas
+    sims = _similitudes(similitud, perfil, [busqueda.texto_licitacion(l) for l in relevantes], resultado)
+    for lic, sim in zip(relevantes, sims or []):
+        lic.similitud = round(sim, 3)
+        s.add(lic)
 
     ingesta.relevantes = len(resultado.nuevas) + len(resultado.actualizadas)
     ingesta.nuevas = len(resultado.nuevas)

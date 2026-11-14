@@ -1,9 +1,14 @@
 """Pruebas de la ingesta (app/ingesta.py) con una API falsa: sin internet ni consultas reales."""
 from sqlmodel import select
 
+from functools import partial
+
 from app.db import Ingesta, Licitacion
-from app.ingesta import ejecutar
+from app import ingesta
 from tests.conftest import APIFalsa, detalle
+
+# Sin búsqueda semántica (no depende de Ollama); las pruebas de la etapa 1b la reemplazan por una falsa
+ejecutar = partial(ingesta.ejecutar, similitud=None)
 
 
 def api_de_prueba():
@@ -56,3 +61,31 @@ def test_detalle_que_no_llega_se_registra_como_error(sesion):
     r = ejecutar(sesion, api=api)
     assert r.ingesta.errores == 1
     assert r.nuevas == []
+
+
+def similitud_falsa(perfil, textos):
+    """Simula embeddings: los textos con "cama" se parecen al rubro."""
+    return [0.9 if "cama" in t.lower() else 0.1 for t in textos]
+
+
+def test_etapa_1b_rescata_nombres_parecidos_sin_palabras_clave(sesion):
+    api = APIFalsa([detalle("5-5-LE26", "Equipamiento de camas para albergue", producto="Colchones de espuma")])
+    r = ingesta.ejecutar(sesion, api=api, similitud=similitud_falsa)
+    assert [l.codigo for l in r.nuevas] == ["5-5-LE26"]
+    assert "nombre parecido al rubro" in r.nuevas[0].motivos[0]
+    assert r.nuevas[0].similitud == 0.9
+
+
+def test_palabra_excluida_no_se_rescata_por_similitud(sesion):
+    api = APIFalsa([detalle("6-6-LE26", "Lavado de ropa de cama")])
+    r = ingesta.ejecutar(sesion, api=api, similitud=similitud_falsa)
+    assert r.ingesta.candidatas == 0
+
+
+def test_si_los_embeddings_fallan_la_ingesta_sigue(sesion):
+    def similitud_rota(perfil, textos):
+        raise ConnectionError("Ollama apagado")
+
+    r = ingesta.ejecutar(sesion, api=api_de_prueba(), similitud=similitud_rota)
+    assert len(r.nuevas) == 2
+    assert any("Búsqueda semántica no disponible" in e for e in r.errores)
