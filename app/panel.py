@@ -121,6 +121,15 @@ def revisar_ahora():
     return RedirectResponse("/", status_code=303)
 
 
+@router.get("/tarea/{clave}/estado", include_in_schema=False)
+def estado_tarea(clave: str) -> dict:
+    """Lo consulta la página cada 2 segundos mientras hay una tarea en curso (ver base.html)."""
+    e = tareas.estado(clave)
+    if e is None:
+        return {"en_curso": False}
+    return {"en_curso": not e.terminada, "titulo": e.titulo, "descripcion": e.descripcion}
+
+
 @router.get("/resumen.txt", include_in_schema=False, response_class=PlainTextResponse)
 def resumen_plano():
     with db.sesion() as s:
@@ -135,7 +144,7 @@ def perfil(request: Request):
 
 
 @router.get("/licitacion/{codigo}", include_in_schema=False)
-def ficha(request: Request, codigo: str):
+def ficha(request: Request, codigo: str, listo: str = ""):
     with db.sesion() as s:
         licitacion = s.get(Licitacion, codigo)
         if licitacion is None:
@@ -153,7 +162,7 @@ def ficha(request: Request, codigo: str):
     esperando = None if tareas.en_curso(codigo) else descargas.esperando_desde(codigo)
     encontrados = descargas.candidatos(codigo, esperando) if esperando else []
     elegido = descargas.eleccion_automatica(encontrados)
-    if elegido:  # sin dudas: se lee solo
+    if elegido and descargas.reclamar(codigo, esperando):  # sin dudas: se lee solo
         _leer_en_segundo_plano(codigo, elegido.ruta, f"Encontré «{elegido.nombre}» en Descargas")
         esperando, encontrados = None, []
 
@@ -163,7 +172,7 @@ def ficha(request: Request, codigo: str):
         "dias": dias_para_cierre(licitacion, datetime.now()), "dias_alerta": DIAS_ALERTA,
         "esperando": esperando, "encontrados": encontrados, "carpeta_descargas": descargas.carpeta(),
         "puntaje_para_bases": PUNTAJE_PARA_BASES, "preguntas": preguntas, "ejemplos": EJEMPLOS_DE_PREGUNTAS,
-        "largo_pregunta": rag.LARGO_MAXIMO_PREGUNTA,
+        "largo_pregunta": rag.LARGO_MAXIMO_PREGUNTA, "recien_terminada": bool(listo),
     })
 
 
@@ -180,7 +189,7 @@ def preguntar(codigo: str, segundo_plano: BackgroundTasks, pregunta: str = Form(
             raise HTTPException(status_code=409, detail="Primero hay que leer las bases de esta licitación")
     tareas.iniciar(codigo, f"Pregunta: «{pregunta}». Se buscan los fragmentos más relevantes de las bases y el "
                            "modelo local redacta la respuesta con su cita (unos 20 a 30 segundos)",
-                   "Buscando respuesta")
+                   "Buscando respuesta", ancla="ultima-respuesta")
     segundo_plano.add_task(tareas.responder_pregunta, codigo, pregunta)
     return RedirectResponse(f"/licitacion/{codigo}#preguntas", status_code=303)
 
@@ -200,7 +209,14 @@ def abrir_ficha_mp(codigo: str):
     if licitacion is None:
         raise HTTPException(status_code=404, detail="Licitación no encontrada")
     descargas.esperar(codigo)
+    descargas.vigilar(codigo, lambda c: _leer_si_esta_libre(codigo, c))
     return RedirectResponse(licitacion.url_ficha or mercadopublico.url_ficha(codigo), status_code=303)
+
+
+def _leer_si_esta_libre(codigo: str, candidato) -> None:
+    """Lo llama el hilo que vigila Descargas al encontrar las bases."""
+    if not tareas.en_curso(codigo):
+        _leer_en_segundo_plano(codigo, candidato.ruta, f"Encontré «{candidato.nombre}» en Descargas")
 
 
 @router.post("/licitacion/{codigo}/bases-descargadas", include_in_schema=False)

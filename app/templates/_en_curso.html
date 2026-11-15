@@ -1,9 +1,12 @@
-{# Aviso de tarea en curso: título destacado con un círculo girando y el detalle como información. #}
-<div class="en-curso" role="status" aria-live="polite">
+{# Aviso de tarea en curso: título destacado con un círculo girando y el detalle como información.
+   Variables: tarea (tareas.Estado), clave (de la tarea), volver (página a cargar al terminar), nota (opcional).
+   El script de base.html consulta /tarea/<clave>/estado cada 2 s y, al terminar, carga `volver`. #}
+<div class="en-curso" role="status" aria-live="polite"
+     data-estado="/tarea/{{ clave }}/estado"{% if tarea.titulo == "Leyendo las bases" %} data-recargar-al-avanzar data-descripcion="{{ tarea.descripcion }}"{% endif %} data-volver="{{ volver }}{% if tarea.ancla %}#{{ tarea.ancla }}{% endif %}">
   <span class="girando" aria-hidden="true"></span>
   <div>
-    <strong>{{ tarea.titulo }}…</strong>
-    <p>{{ tarea.descripcion }}.</p>
+    <strong data-titulo>{{ tarea.titulo }}…</strong>
+    <p data-detalle>{{ tarea.descripcion }}.</p>
     <p class="sutil">{{ nota or "Los botones se activan cuando termine; esta página se actualiza sola." }}</p>
   </div>
 </div>

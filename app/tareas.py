@@ -19,6 +19,7 @@ class Estado:
     descripcion: str  # el detalle (cambia con el avance)
     inicio: datetime
     titulo: str = "Procesando"  # lo que se destaca en el panel: "Buscando respuesta", "Leyendo las bases"...
+    ancla: str = ""  # sección de la página a la que se lleva a la persona al terminar (p. ej. la respuesta nueva)
     terminada: bool = False
     error: str = ""
 
@@ -42,9 +43,9 @@ def _actualizar(codigo: str, **cambios) -> None:
             setattr(_estados[codigo], clave, valor)
 
 
-def iniciar(codigo: str, descripcion: str, titulo: str = "Procesando") -> None:
+def iniciar(codigo: str, descripcion: str, titulo: str = "Procesando", ancla: str = "") -> None:
     with _candado:
-        _estados[codigo] = Estado(descripcion, datetime.now(), titulo)
+        _estados[codigo] = Estado(descripcion, datetime.now(), titulo, ancla=ancla)
 
 
 def evaluar_y_guardar(codigo: str) -> None:
@@ -106,9 +107,13 @@ def revisar_mercado_publico() -> None:
         _actualizar(REVISION, descripcion="Descargando el listado de licitaciones activas de Mercado Público")
         with db.sesion() as s:
             r = ejecutar(s, al_avanzar=avance_detalle, similitud=similitud_configurada())
-            _, errores = puntuar_sin_puntaje(s, al_avanzar=avance_puntaje)
-        resumen = (f"Listo: {r.ingesta.activas} activas revisadas, {r.ingesta.relevantes} del rubro, "
-                   f"{r.ingesta.nuevas} nuevas")
+            # El resumen se arma ANTES de cerrar la sesión: después, la ingesta ya no se puede leer
+            # (DetachedInstanceError, el mismo caso que en scripts/extraer.py)
+            resumen = (f"Listo: {r.ingesta.activas} activas revisadas, {r.ingesta.relevantes} del rubro, "
+                       f"{r.ingesta.nuevas} nuevas")
+            puntuadas, errores = puntuar_sin_puntaje(s, al_avanzar=avance_puntaje)
+            if puntuadas:
+                resumen += f"; {len(puntuadas)} con puntaje nuevo"
         _actualizar(REVISION, descripcion=resumen, terminada=True,
                     error="; ".join(r.errores + errores)[:300])
     except Exception as error:

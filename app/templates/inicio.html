@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block meta %}{% if revisando %}<meta http-equiv="refresh" content="5">{% endif %}{% endblock %}
+
 
 {% macro tarjeta(l) %}
 {% set d = dias(l) %}
@@ -45,7 +45,7 @@
   </div>
 </section>
 
-{% if revisando %}{% with tarea=revision, nota="Toma unos minutos; esta página se actualiza sola." %}{% include "_en_curso.html" %}{% endwith %}
+{% if revisando %}{% with tarea=revision, clave="__revision__", volver="/?listo=1", nota="Toma unos minutos; esta página se actualiza sola." %}{% include "_en_curso.html" %}{% endwith %}
 {% elif revision %}
 <p class="aviso {% if revision.error %}error{% else %}listo{% endif %}">
   {{ revision.descripcion }}.{% if revision.error %} Con avisos: {{ revision.error }}{% endif %}

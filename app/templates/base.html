@@ -23,5 +23,34 @@
     Datos: API de Mercado Público. Los requisitos los extrae un modelo de lenguaje local y se verifican contra el PDF;
     revisa siempre las bases antes de postular.
   </footer>
+  <script>
+    // Mientras hay una tarea en curso, pregunta su estado cada 2 s: actualiza el detalle y, cuando
+    // termina, carga la página de nuevo (con ?listo=1, para que sea una carga real y no solo un salto
+    // a la sección #...). Si el servidor no responde, recarga cada 5 s.
+    // Al leer bases, además recarga cuando avanza de bloque, para mostrar los datos que ya salieron.
+    const aviso = document.querySelector(".en-curso[data-estado]");
+    if (aviso) {
+      let ultimo = aviso.dataset.descripcion ?? null;  // lo que la página ya muestra
+      const revisar = async () => {
+        try {
+          const e = await (await fetch(aviso.dataset.estado, {cache: "no-store"})).json();
+          if (!e.en_curso) {  // un valor nuevo de "listo" cada vez: así nunca es la misma dirección
+            const destino = new URL(aviso.dataset.volver, location.href);
+            destino.searchParams.set("listo", Date.now());
+            location.href = destino;
+            return;
+          }
+          if (aviso.hasAttribute("data-recargar-al-avanzar") && ultimo !== null && e.descripcion !== ultimo) {
+            location.reload();  // terminó un bloque: hay datos nuevos guardados
+            return;
+          }
+          ultimo = e.descripcion;
+          document.querySelectorAll(".en-curso [data-detalle]").forEach(p => p.textContent = e.descripcion + ".");
+          setTimeout(revisar, 2000);
+        } catch { setTimeout(() => location.reload(), 5000); }
+      };
+      setTimeout(revisar, 2000);
+    }
+  </script>
 </body>
 </html>

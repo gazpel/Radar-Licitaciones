@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     # Modelos con razonamiento (Granite 4.2): false lo desactiva y reduce el tiempo a la mitad.
     # Vacío = no se envía (para modelos sin razonamiento, como mistral o gemma4:e2b).
     llm_think: bool | None = False
+    # Modelo para LEER LAS BASES (extracción). Gemma 4 E2B: ~26% más rápido que Granite y encontró más
+    # datos en la comparación del S2. Granite (LLM_MODEL) sigue para el puntaje y las preguntas (RAG).
+    # Vacío = usa LLM_MODEL.
+    llm_model_extraccion: str = "gemma4:e2b"
+    llm_think_extraccion: bool | None = None
     # Carpeta donde el navegador guarda las descargas (opción A de la carga de bases). Vacío = Descargas del usuario.
     carpeta_descargas: str = ""
 

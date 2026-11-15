@@ -87,6 +87,7 @@ footer { max-width: 960px; margin: 0 auto; padding: 0 16px 32px; color: var(--su
 .aviso { background: #e1ecfa; border-radius: 10px; padding: 12px 14px; }
 .aviso.error { background: #fbe4e4; color: var(--rojo); }
 .aviso.listo { background: #e2f3ea; color: var(--verde); }
+.aviso.parcial { background: #fdf0dc; color: #6b4600; }
 
 .conveniencia { display: flex; gap: 20px; background: var(--superficie); border: 1px solid var(--borde); border-radius: 10px; padding: 16px; }
 .columnas { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -124,6 +125,10 @@ blockquote { margin: 6px 0 0; padding-left: 10px; border-left: 2px solid var(--b
 .respuesta.sin_respaldo { border-left-color: #c4c9d1; }
 .respuesta p { margin: 4px 0; }
 .la-pregunta { font-weight: 600; }
+.respuesta.destacada { box-shadow: 0 0 0 3px #b8d0f0; animation: aparecer .6s ease-out; }
+.nueva-respuesta { display: inline-block; font-size: .75rem; font-weight: 700; color: #fff; background: var(--acento);
+  border-radius: 999px; padding: 1px 8px; margin: 0 0 4px; }
+@keyframes aparecer { from { opacity: .3; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
 .en-curso {
   display: flex; gap: 14px; align-items: flex-start; margin: 12px 0; padding: 14px 16px;
@@ -144,8 +149,8 @@ blockquote { margin: 6px 0 0; padding-left: 10px; border-left: 2px solid var(--b
 
 .carga { background: var(--superficie); border: 1px dashed var(--borde); border-radius: 10px; padding: 4px 16px 16px; margin-top: 32px; }
 .carga ol { padding-left: 18px; }
-.aviso.buscando { margin-top: 12px; }
-.aviso.buscando p { margin: 4px 0; }
+.en-curso.buscando { margin-top: 12px; }
+.en-curso.buscando strong { margin-bottom: 2px; }
 .encontrados { list-style: none; padding: 0; margin: 8px 0; }
 .encontrados li { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
 .encontrados form, .encontrados button { margin: 0; }

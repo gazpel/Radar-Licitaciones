@@ -84,7 +84,7 @@ def test_abrir_ficha_desde_el_panel_empieza_a_buscar_en_descargas(cliente, tmp_p
     monkeypatch.setattr(descargas.settings, "carpeta_descargas", str(tmp_path / "descargas_vacia"))
     r = cliente.get("/licitacion/1-1-LE26/ficha-mp", follow_redirects=False)
     assert r.status_code == 303 and "mercadopublico.cl" in r.headers["location"]
-    assert "Buscando PDF nuevos" in cliente.get("/licitacion/1-1-LE26").text
+    assert "Esperando las bases en Descargas" in cliente.get("/licitacion/1-1-LE26").text
     descargas.dejar_de_esperar("1-1-LE26")
 
 
@@ -133,3 +133,15 @@ def test_boton_revisar_lanza_una_sola_revision(cliente, monkeypatch):
     assert "Revisando…" in cliente.get("/").text
     tareas._estados.pop(tareas.REVISION)
     assert len(llamadas) == 1
+
+
+def test_estado_de_una_tarea_para_que_la_pagina_sepa_cuando_recargar(cliente):
+    from app import tareas
+    assert cliente.get("/tarea/1-1-LE26/estado").json() == {"en_curso": False}
+    tareas.iniciar("1-1-LE26", "Pregunta: «x»", "Buscando respuesta", ancla="ultima-respuesta")
+    pagina = cliente.get("/licitacion/1-1-LE26").text
+    assert 'data-estado="/tarea/1-1-LE26/estado"' in pagina and "#ultima-respuesta" in pagina
+    assert cliente.get("/tarea/1-1-LE26/estado").json()["en_curso"] is True
+    tareas._actualizar("1-1-LE26", terminada=True)
+    assert cliente.get("/tarea/1-1-LE26/estado").json()["en_curso"] is False
+    tareas._estados.pop("1-1-LE26")

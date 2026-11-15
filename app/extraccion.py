@@ -78,10 +78,12 @@ def _max_caracteres() -> int:
 
 
 def extraer(paginas: list[str], al_avanzar=None, modelo: str | None = None,
-            think: bool | None = None) -> list[Hallazgo]:
+            think: bool | None = None, al_hallar=None) -> list[Hallazgo]:
     """Lee las bases por bloques de páginas y devuelve los hallazgos verificados.
 
     Si la respuesta de un bloque no cabe (se trunca), el bloque se divide en dos y se reintenta.
+    `al_hallar(hallazgos)` se llama al terminar cada bloque con sus hallazgos nuevos: así el panel
+    los muestra a medida que salen, sin esperar a que termine todo.
     """
     pendientes = agrupar_paginas(paginas, _max_caracteres())
     esquema = RespuestaModelo.model_json_schema()
@@ -103,6 +105,7 @@ def extraer(paginas: list[str], al_avanzar=None, modelo: str | None = None,
             mitad = len(bloque) // 2
             pendientes[:0] = [bloque[:mitad], bloque[mitad:]]
             continue
+        nuevos = []
         for h in RespuestaModelo.model_validate(datos).hallazgos:
             nivel, pagina, texto_real = verificar(h.cita, h.descripcion, h.pagina, paginas, bloque)
             hallazgo = Hallazgo(**h.model_dump(), nivel=nivel, texto_real=texto_real,
@@ -111,5 +114,8 @@ def extraer(paginas: list[str], al_avanzar=None, modelo: str | None = None,
             clave = (hallazgo.tipo.value, normalizar(hallazgo.descripcion))
             if clave not in vistos:
                 vistos.add(clave)
-                resultados.append(hallazgo)
+                nuevos.append(hallazgo)
+        resultados += nuevos
+        if al_hallar and nuevos:
+            al_hallar(nuevos)
     return resultados

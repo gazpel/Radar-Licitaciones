@@ -132,3 +132,51 @@ def test_resumen_pide_bases_solo_con_puntaje_alto(sesion):
     r = resumen_del_dia(sesion, ahora=AHORA)
     assert [l.codigo for l in r.por_cargar] == ["1-1-LE26"]
     assert r.con_bases == {"4-4-LE26"}
+
+
+def test_revision_desde_el_panel_termina_con_su_resumen(sesion, monkeypatch):
+    """La revisión del botón del panel: ingesta + puntaje con la ficha, con API y modelo falsos."""
+    from functools import partial
+
+    from app import conveniencia, db, ingesta, tareas
+    from tests.conftest import APIFalsa, detalle
+
+    monkeypatch.setattr(db, "motor", sesion.get_bind())
+    api = APIFalsa([detalle("1-1-LE26", "Adquisición de colchones")])
+    monkeypatch.setattr(ingesta, "ejecutar", partial(ingesta.ejecutar, api=api))
+    monkeypatch.setattr(conveniencia, "puntuar_sin_puntaje",
+                        partial(conveniencia.puntuar_sin_puntaje, evaluador=evaluador_falso))
+    tareas.iniciar(tareas.REVISION, "Empezando")
+    tareas.revisar_mercado_publico()
+    estado = tareas.estado(tareas.REVISION)
+    tareas._estados.pop(tareas.REVISION)
+    assert estado.terminada and not estado.error, estado.error
+    assert "1 activas revisadas, 1 del rubro, 1 nuevas; 1 con puntaje nuevo" in estado.descripcion
+
+
+def test_el_hilo_detecta_las_bases_sin_que_la_pagina_este_abierta(tmp_path, monkeypatch):
+    import threading
+    monkeypatch.setattr(descargas.settings, "carpeta_descargas", str(tmp_path))
+    monkeypatch.setattr(descargas, "_primeras_paginas", leer_falso)
+    encontradas = []
+    listo = threading.Event()
+    desde = descargas.esperar(CODIGO)
+    hilo = descargas.vigilar(CODIGO, lambda c: (encontradas.append(c.nombre), listo.set()), cada=0.05)
+    ruta = tmp_path / "0A1B2C.pdf"  # llega la descarga, con un nombre cualquiera
+    ruta.write_text(f"Apruébense las bases de licitación {CODIGO}", encoding="utf-8")
+    fecha = (desde + timedelta(seconds=5)).timestamp()
+    os.utime(ruta, (fecha, fecha))
+    assert listo.wait(3) and encontradas == ["0A1B2C.pdf"]
+    hilo.join(1)
+    assert descargas.esperando_desde(CODIGO) is None  # dejó de esperar: no se lee dos veces
+    assert not descargas.reclamar(CODIGO)
+
+
+def test_volver_a_abrir_la_ficha_detiene_el_hilo_anterior(tmp_path, monkeypatch):
+    monkeypatch.setattr(descargas.settings, "carpeta_descargas", str(tmp_path))
+    descargas.esperar(CODIGO, ahora=datetime.now())
+    viejo = descargas.vigilar(CODIGO, lambda c: None, cada=0.05)
+    descargas.esperar(CODIGO, ahora=datetime.now() + timedelta(seconds=1))  # otra espera
+    viejo.join(1)
+    assert not viejo.is_alive()
+    descargas.dejar_de_esperar(CODIGO)

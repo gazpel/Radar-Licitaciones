@@ -54,22 +54,50 @@ def procesar_bases(s: Session, codigo: str, ruta_pdf: str | Path, modelo: str | 
     if sum(len(p) for p in paginas) < MIN_CARACTERES_POR_PAGINA * max(1, len(paginas)):
         raise PDFSinTexto("El PDF casi no tiene texto: puede ser un documento escaneado. Súbelo en otra versión.")
 
-    if modelo is None:
-        modelo, think = settings.llm_model, settings.llm_think
-    inicio = time.time()
-    hallazgos = extractor(paginas, al_avanzar=al_avanzar, modelo=modelo, think=think)
+    if modelo is None:  # el modelo configurado para leer bases (si no hay, el general)
+        if settings.llm_model_extraccion:
+            modelo, think = settings.llm_model_extraccion, settings.llm_think_extraccion
+        else:
+            modelo, think = settings.llm_model, settings.llm_think
 
+    # La lectura se guarda desde el comienzo, "en curso", y cada bloque se guarda apenas sale:
+    # así el panel muestra los datos a medida que aparecen.
+    inicio = time.time()
     extraccion = Extraccion(licitacion_codigo=codigo, archivo=str(destino), paginas=len(paginas),
-                            modelo=modelo, segundos=round(time.time() - inicio, 1))
+                            modelo=modelo, segundos=0, en_curso=True)
     s.add(extraccion)
     s.commit()
     s.refresh(extraccion)
-    for h in hallazgos:
-        s.add(HallazgoGuardado(
-            extraccion_id=extraccion.id, licitacion_codigo=codigo, tipo=h.tipo.value,
-            descripcion=h.descripcion, pagina=h.pagina, cita=h.cita, texto_real=h.texto_real,
-            nivel=h.nivel.value, confiable=h.confiable,
-        ))
+
+    guardados: set[int] = set()
+
+    def guardar(hallazgos: list[Hallazgo]) -> None:
+        for h in hallazgos:
+            guardados.add(id(h))
+            s.add(HallazgoGuardado(
+                extraccion_id=extraccion.id, licitacion_codigo=codigo, tipo=h.tipo.value,
+                descripcion=h.descripcion, pagina=h.pagina, cita=h.cita, texto_real=h.texto_real,
+                nivel=h.nivel.value, confiable=h.confiable,
+            ))
+        extraccion.segundos = round(time.time() - inicio, 1)
+        s.add(extraccion)
+        s.commit()
+
+    try:
+        hallazgos = extractor(paginas, al_avanzar=al_avanzar, modelo=modelo, think=think, al_hallar=guardar)
+    except Exception:
+        # Una lectura a medias no debe reemplazar a la anterior: se borra y queda la que había
+        s.rollback()
+        for h in s.exec(select(HallazgoGuardado).where(HallazgoGuardado.extraccion_id == extraccion.id)):
+            s.delete(h)
+        s.delete(extraccion)
+        s.commit()
+        raise
+
+    guardar([h for h in hallazgos if id(h) not in guardados])  # por si el extractor no avisó por bloque
+    extraccion.segundos = round(time.time() - inicio, 1)
+    extraccion.en_curso = False
+    s.add(extraccion)
     s.commit()
     s.refresh(extraccion)  # recarga los datos para poder usarla después de cerrar la sesión
     return extraccion, hallazgos

@@ -11,11 +11,15 @@ from tests.conftest import APIFalsa, detalle
 PDF_SINTETICO = "data/bases/prueba_sintetica.pdf"
 
 
-def extractor_falso(paginas, al_avanzar=None, modelo=None, think=None):
-    return [
-        Hallazgo(tipo=Tipo.plazo, descripcion="Cierre", pagina=1, cita="x" * 20, nivel=Nivel.textual, confiable=True),
-        Hallazgo(tipo=Tipo.garantia, descripcion="Garantía", pagina=2, cita="y" * 20, nivel=Nivel.sin_respaldo),
+def extractor_falso(paginas, al_avanzar=None, modelo=None, think=None, al_hallar=None):
+    bloques = [
+        [Hallazgo(tipo=Tipo.plazo, descripcion="Cierre", pagina=1, cita="x" * 20, nivel=Nivel.textual, confiable=True)],
+        [Hallazgo(tipo=Tipo.garantia, descripcion="Garantía", pagina=2, cita="y" * 20, nivel=Nivel.sin_respaldo)],
     ]
+    for bloque in bloques:  # como el real: avisa cada bloque apenas termina
+        if al_hallar:
+            al_hallar(bloque)
+    return [h for b in bloques for h in b]
 
 
 @pytest.fixture(autouse=True)
@@ -56,3 +60,35 @@ def test_pdf_sin_texto_se_rechaza(sesion, tmp_path):
     api = APIFalsa([detalle("1-1-LE26", "Colchones")])
     with pytest.raises(PDFSinTexto):
         procesar_bases(sesion, "1-1-LE26", vacio, modelo="falso", api=api, extractor=extractor_falso)
+
+
+def test_los_datos_se_guardan_a_medida_que_salen(sesion):
+    api = APIFalsa([detalle("1-1-LE26", "Colchones")])
+    vistos = []
+
+    def extractor_que_mira(paginas, al_avanzar=None, modelo=None, think=None, al_hallar=None):
+        def mirar(hallazgos):
+            al_hallar(hallazgos)
+            en_la_base = hallazgos_vigentes(sesion, "1-1-LE26")
+            vistos.append((len(en_la_base), bases.ultima_extraccion(sesion, "1-1-LE26").en_curso))
+        return extractor_falso(paginas, al_hallar=mirar)
+
+    extraccion, _ = procesar_bases(sesion, "1-1-LE26", PDF_SINTETICO, modelo="falso", api=api,
+                                   extractor=extractor_que_mira)
+    assert vistos == [(1, True), (2, True)]  # el panel ya los ve mientras sigue leyendo
+    assert extraccion.en_curso is False
+
+
+def test_si_la_lectura_falla_queda_la_anterior(sesion):
+    api = APIFalsa([detalle("1-1-LE26", "Colchones")])
+    primera, _ = procesar_bases(sesion, "1-1-LE26", PDF_SINTETICO, modelo="falso", api=api,
+                                extractor=extractor_falso)
+
+    def falla_a_mitad(paginas, al_avanzar=None, modelo=None, think=None, al_hallar=None):
+        al_hallar(extractor_falso(paginas)[:1])
+        raise ConnectionError("Ollama se cayó")
+
+    with pytest.raises(ConnectionError):
+        procesar_bases(sesion, "1-1-LE26", PDF_SINTETICO, modelo="falso", api=api, extractor=falla_a_mitad)
+    assert bases.ultima_extraccion(sesion, "1-1-LE26").id == primera.id
+    assert len(hallazgos_vigentes(sesion, "1-1-LE26")) == 2

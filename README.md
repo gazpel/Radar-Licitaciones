@@ -47,7 +47,8 @@ pip install -r requirements.txt
 copy .env.example .env      # y completar MP_TICKET
 ```
 
-En `.env`, `LLM_MODEL` elige el modelo (por defecto `granite4.2:8b`) y `LLM_THINK=false` desactiva el modo
+En `.env`, `LLM_MODEL_EXTRACCION` elige el modelo que lee las bases (por defecto `gemma4:e2b`: 24% más rápido
+y con más citas encontradas en unas bases de 18 páginas) y `LLM_MODEL` el del puntaje y las preguntas (por defecto `granite4.2:8b`) y `LLM_THINK=false` desactiva el modo
 razonamiento de Granite. Con `mistral` o `gemma4:e2b`, deja `LLM_THINK=` vacío.
 
 ## Cómo se obtienen las bases (provisorio: buscar una mejor solución)

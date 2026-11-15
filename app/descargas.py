@@ -8,10 +8,13 @@ a los adjuntos (opción C, a conversar con ellos).
 Cómo funciona:
 1. El panel abre la ficha con /licitacion/<código>/ficha-mp y anota la hora: desde ahí "espera"
    las bases de esa licitación (máximo ESPERA_MAXIMA).
-2. Mientras espera, revisa la carpeta de descargas y busca PDF nuevos (o PDF dentro de un ZIP).
+2. Mientras espera, un hilo revisa la carpeta de descargas cada CADA_CUANTO segundos y busca PDF
+   nuevos (o PDF dentro de un ZIP). No depende de que la página del panel esté abierta.
 3. Si un solo PDF menciona el código de la licitación y parece ser las bases, se lee solo.
    Si hay dudas (varios archivos, anexos, sin código), el panel los muestra y la persona elige.
 """
+import threading
+import time
 import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -23,6 +26,7 @@ from app.config import settings
 from app.texto import normalizar
 
 ESPERA_MAXIMA = timedelta(minutes=30)
+CADA_CUANTO = 3  # segundos entre revisiones de la carpeta
 TAMANO_MAXIMO = 20 * 1024 * 1024  # el mismo límite que la carga manual
 CARPETA_ZIP = Path("data/descargas")  # donde se extraen los PDF que vienen dentro de un ZIP
 PAGINAS_A_REVISAR = 3  # para ver si menciona el código y si son las bases basta con el comienzo
@@ -44,14 +48,52 @@ class Candidato:
 
 
 _esperando: dict[str, datetime] = {}  # código -> desde cuándo se esperan sus bases (en memoria)
+_candado = threading.Lock()
 
 
-def esperar(codigo: str, ahora: datetime | None = None) -> None:
-    _esperando[codigo] = ahora or datetime.now()
+def esperar(codigo: str, ahora: datetime | None = None) -> datetime:
+    with _candado:
+        _esperando[codigo] = ahora or datetime.now()
+        return _esperando[codigo]
 
 
 def dejar_de_esperar(codigo: str) -> None:
-    _esperando.pop(codigo, None)
+    with _candado:
+        _esperando.pop(codigo, None)
+
+
+def reclamar(codigo: str, desde: datetime | None = None) -> bool:
+    """Deja de esperar y devuelve True solo a quien llegó primero (el hilo o la página del panel).
+
+    Evita que las mismas bases se lean dos veces si el hilo y la página las encuentran a la vez.
+    Con `desde`, solo reclama si la espera sigue siendo esa (no una más nueva).
+    """
+    with _candado:
+        if codigo not in _esperando or (desde is not None and _esperando[codigo] != desde):
+            return False
+        del _esperando[codigo]
+        return True
+
+
+def vigilar(codigo: str, al_encontrar, cada: float = CADA_CUANTO) -> threading.Thread:
+    """Revisa la carpeta en un hilo mientras se esperen las bases; si encuentra una elección segura,
+    llama a al_encontrar(candidato). Si se vuelve a abrir la ficha (otra espera), este hilo termina."""
+    desde = _esperando.get(codigo)
+
+    def bucle():
+        while desde is not None and esperando_desde(codigo) == desde:
+            try:
+                elegido = eleccion_automatica(candidatos(codigo, desde))
+            except Exception:  # p. ej. un archivo bloqueado mientras se descarga: se reintenta
+                elegido = None
+            if elegido and reclamar(codigo, desde):
+                al_encontrar(elegido)
+                return
+            time.sleep(cada)
+
+    hilo = threading.Thread(target=bucle, daemon=True)
+    hilo.start()
+    return hilo
 
 
 def esperando_desde(codigo: str, ahora: datetime | None = None) -> datetime | None:
@@ -88,9 +130,10 @@ def _extraer_zip(ruta: Path) -> list[tuple[Path, str]]:
     return salida
 
 
-def candidatos(codigo: str, desde: datetime, en: Path | None = None, leer=_primeras_paginas) -> list[Candidato]:
+def candidatos(codigo: str, desde: datetime, en: Path | None = None, leer=None) -> list[Candidato]:
     """PDF descargados desde `desde`, ordenados: primero los que mencionan el código y parecen bases."""
     en = en or carpeta()
+    leer = leer or _primeras_paginas
     if not en.is_dir():
         return []
     encontrados: list[tuple[Path, str, datetime]] = []

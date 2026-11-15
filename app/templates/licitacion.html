@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block meta %}{% if en_curso or esperando %}<meta http-equiv="refresh" content="5">{% endif %}{% endblock %}
+{% block meta %}{% if esperando and not en_curso %}<script>setTimeout(() => location.reload(), 3000);</script>{% endif %}{% endblock %}
 {% block titulo %}{{ l.codigo }} · Radar de Licitaciones{% endblock %}
 {% block contenido %}
 <p><a href="/">← Volver al resumen</a></p>
@@ -20,7 +20,7 @@
   <ul>{% for m in l.motivos %}<li>{{ m }}</li>{% endfor %}</ul>
 </details>
 
-{% if en_curso %}{% with tarea=estado, nota=None %}{% include "_en_curso.html" %}{% endwith %}
+{% if en_curso %}{% with tarea=estado, clave=l.codigo, volver="/licitacion/" ~ l.codigo ~ "?listo=1", nota=None %}{% include "_en_curso.html" %}{% endwith %}
 {% elif estado %}
 <p class="aviso {% if estado.error %}error{% else %}listo{% endif %}">
   {% if estado.error %}No se pudo completar: {{ estado.error }}{% else %}✔ Proceso terminado.{% endif %}
@@ -44,15 +44,20 @@
 {% else %}
 <p class="sutil">Aún no se ha evaluado.</p>
 {% endif %}
-{% if en_curso %}{% with tarea=estado, nota=None %}{% include "_en_curso.html" %}{% endwith %}{% endif %}
+{% if en_curso %}{% with tarea=estado, clave=l.codigo, volver="/licitacion/" ~ l.codigo ~ "?listo=1", nota=None %}{% include "_en_curso.html" %}{% endwith %}{% endif %}
 <form method="post" action="/licitacion/{{ l.codigo }}/conveniencia">
   <button {% if en_curso %}disabled{% endif %}>{% if l.conveniencia %}Recalcular{% else %}Calcular{% endif %} conveniencia</button>
 </form>
 
 <h2>Requisitos y datos de las bases</h2>
 {% if extraccion %}
+{% if extraccion.en_curso %}
+<p class="aviso parcial">Leyendo las bases con {{ extraccion.modelo }} ({{ extraccion.paginas }} páginas):
+  <strong>{{ conteo.values() | sum }} datos encontrados hasta ahora</strong>. Aparecen más a medida que se lee cada bloque.</p>
+{% else %}
 <p class="sutil">Leídas el {{ extraccion.fecha.strftime("%d/%m/%Y %H:%M") }} con {{ extraccion.modelo }}
   ({{ extraccion.paginas }} páginas, {{ "%.0f" | format(extraccion.segundos) }} s).</p>
+{% endif %}
 <ul class="leyenda">
   {% for clave, (icono, texto) in niveles.items() %}
   <li>{{ icono }} {{ texto }} <strong>({{ conteo[clave] }})</strong></li>
@@ -90,7 +95,7 @@
 <h2 id="preguntas">Pregúntale a las bases</h2>
 <p class="sutil">La respuesta sale solo de las bases: el radar busca los fragmentos más relevantes (por palabras y por
   significado) y el modelo responde citando la página. La cita se verifica contra el PDF.</p>
-{% if en_curso %}{% with tarea=estado, nota=None %}{% include "_en_curso.html" %}{% endwith %}{% endif %}
+{% if en_curso %}{% with tarea=estado, clave=l.codigo, volver="/licitacion/" ~ l.codigo ~ "?listo=1", nota=None %}{% include "_en_curso.html" %}{% endwith %}{% endif %}
 <form method="post" action="/licitacion/{{ l.codigo }}/preguntar" class="pregunta">
   <input type="text" name="pregunta" maxlength="{{ largo_pregunta }}" minlength="5" required
          placeholder="Ej.: ¿qué pasa si me atraso en la entrega?">
@@ -106,7 +111,8 @@
 </div>
 
 {% for p in preguntas %}
-<article class="respuesta {{ p.nivel }}">
+<article class="respuesta {{ p.nivel }}{% if loop.first and recien_terminada %} destacada{% endif %}"{% if loop.first %} id="ultima-respuesta"{% endif %}>
+  {% if loop.first and recien_terminada %}<p class="nueva-respuesta">Respuesta nueva</p>{% endif %}
   <p class="la-pregunta">{{ p.pregunta }}</p>
   <p>{% if p.encontrado %}<span title="{{ niveles[p.nivel][1] }}">{{ niveles[p.nivel][0] }}</span>{% else %}<span title="No está en las bases">ℹ️</span>{% endif %} {{ p.respuesta }}
     {% if p.nivel == "interpretado" %}<span class="etiqueta urgente">Revisar: tiene datos que no están en la cita</span>{% endif %}
@@ -128,9 +134,12 @@
   {% endif %}
 
   {% if esperando %}
-  <div class="aviso buscando">
-    <p>🔎 Buscando PDF nuevos en <code>{{ carpeta_descargas }}</code> desde las {{ esperando.strftime("%H:%M") }}…
-      Descarga las bases en la pestaña de Mercado Público; esta página se actualiza sola.</p>
+  <div class="en-curso buscando">
+    <span class="girando" aria-hidden="true"></span>
+    <div>
+    <strong>Esperando las bases en Descargas…</strong>
+    <p>Descarga el PDF (o el ZIP) de las bases en la pestaña de Mercado Público. El radar revisa
+      <code>{{ carpeta_descargas }}</code> cada 3 segundos desde las {{ esperando.strftime("%H:%M") }} y lo lee solo apenas llegue.</p>
     {% if encontrados %}
     <p>Encontré estos archivos nuevos. ¿Cuál corresponde a las bases?</p>
     <ul class="encontrados">
@@ -149,15 +158,17 @@
     </ul>
     {% endif %}
     <form method="post" action="/licitacion/{{ l.codigo }}/dejar-de-buscar"><button class="secundario">Dejar de buscar</button></form>
+    </div>
   </div>
   {% endif %}
 
   <ol>
-    <li>Abre la <a href="/licitacion/{{ l.codigo }}/ficha-mp" target="_blank" rel="noopener">ficha en Mercado Público</a> y descarga el PDF de las bases
+    <li>Abre la <a href="/licitacion/{{ l.codigo }}/ficha-mp" target="_blank" rel="noopener"
+      onclick="setTimeout(() => location.reload(), 800)">ficha en Mercado Público</a> y descarga el PDF de las bases
       (la descarga requiere una persona: el sitio la protege con un captcha).</li>
     <li>El radar lo detecta en tu carpeta de descargas y lo lee solo. Si no lo encuentra, súbelo aquí:</li>
   </ol>
-  {% if en_curso %}{% with tarea=estado, nota=None %}{% include "_en_curso.html" %}{% endwith %}{% endif %}
+  {% if en_curso %}{% with tarea=estado, clave=l.codigo, volver="/licitacion/" ~ l.codigo ~ "?listo=1", nota=None %}{% include "_en_curso.html" %}{% endwith %}{% endif %}
   <form method="post" action="/licitacion/{{ l.codigo }}/bases" enctype="multipart/form-data">
     <input type="file" name="archivo" accept="application/pdf" required>
     <button {% if en_curso %}disabled{% endif %}>Leer bases</button>

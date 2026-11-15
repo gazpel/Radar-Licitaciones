@@ -79,6 +79,7 @@ class Extraccion(SQLModel, table=True):
     modelo: str
     segundos: float
     fecha: NaiveDatetime = Field(default_factory=datetime.now)
+    en_curso: bool | None = False  # True mientras se leen las bases (los hallazgos se guardan por bloque)
 
 
 class HallazgoGuardado(SQLModel, table=True):
