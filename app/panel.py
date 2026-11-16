@@ -35,11 +35,11 @@ TIPOS = {  # en el orden en que se muestran
     "criterio_evaluacion": "Criterios de evaluación",
     "multa": "Multas",
 }
-EJEMPLOS_DE_PREGUNTAS = [
-    "¿Qué pasa si me atraso en la entrega?",
+EJEMPLOS_DE_PREGUNTAS = [  # probadas con bases reales: responden bien y con cita
+    "¿Qué colchones están pidiendo y cuántos?",
     "¿En cuántos días me pagan?",
-    "¿Piden garantía de fiel cumplimiento? ¿De cuánto?",
-    "¿Cómo se evalúan las ofertas?",
+    "¿Qué pasa si me atraso en la entrega?",
+    "¿Qué documentos tengo que presentar?",
 ]
 NIVELES = {
     "textual": (ICONO[Nivel.textual], "Está tal cual en las bases"),

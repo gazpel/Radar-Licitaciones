@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     llm_num_predict: int = 4000
     # Modelo de embeddings (multilingüe, para la búsqueda semántica)
     embed_model: str = "granite-embedding:278m"
+    # Cuánto tiempo deja Ollama los modelos cargados en la GPU después de usarlos (por defecto de Ollama: 5m).
+    # Con 30, una pregunta después de un rato sin uso no paga la carga del modelo (~15-20 s extra).
+    llm_keep_alive_minutos: int = 30
     # Etapa 1b (rescatar por significado nombres sin palabras clave). Desactivada: medido el 14/11/2026,
     # con títulos cortos el modelo no distingue el rubro (habría que aceptar >1.200 candidatas para no
     # perder ninguna de las 6 de colchones, que las palabras clave ya encuentran todas).

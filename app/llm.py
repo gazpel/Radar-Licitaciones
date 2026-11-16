@@ -27,6 +27,7 @@ def _modelo(nombre: str, think: bool | None, esquema_json: str) -> ChatOllama:
         num_predict=settings.llm_num_predict,
         format=json.loads(esquema_json),  # salida estructurada: Ollama obliga a cumplir el esquema
         reasoning=think,  # False desactiva el razonamiento de Granite 4.2
+        keep_alive=settings.llm_keep_alive_minutos * 60,  # el modelo sigue cargado un rato: la próxima respuesta es más rápida
     )
 
 

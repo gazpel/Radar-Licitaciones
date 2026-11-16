@@ -21,7 +21,8 @@ _cliente: OllamaEmbeddings | None = None
 def _embeddings() -> OllamaEmbeddings:
     global _cliente
     if _cliente is None:
-        _cliente = OllamaEmbeddings(model=settings.embed_model, base_url=settings.ollama_url)
+        _cliente = OllamaEmbeddings(model=settings.embed_model, base_url=settings.ollama_url,
+                                    keep_alive=settings.llm_keep_alive_minutos * 60)
     return _cliente
 
 
