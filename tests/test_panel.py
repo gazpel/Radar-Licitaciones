@@ -10,7 +10,7 @@ from app.conveniencia import _ficha
 from app.db import Ingesta, Licitacion
 from app.resumen import resumen_del_dia, resumen_texto
 
-AHORA = datetime(2026, 11, 14, 10, 0)
+AHORA = datetime.now().replace(second=0, microsecond=0)  # relativo a hoy: el panel compara con la hora real
 
 
 def licitacion(codigo, dias_cierre, puntaje=None, horas_desde_ingreso=1, monto=1_000_000):
